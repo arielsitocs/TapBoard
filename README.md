@@ -25,6 +25,8 @@
 - **WhatsApp:** muestra en el panel las notificaciones de WhatsApp Desktop. Se descartan deslizando el dedo y quedan guardadas en un historial sin duplicados.
 - **Páginas de botones:** puedes tener varias páginas y pasar de una a otra deslizando.
 - **Editor de botones al estilo Stream Deck:** un botón puede abrir una app, una acción del sistema, un control multimedia, un atajo de teclado (que se graba al pulsarlo), una URL, un texto que se escribe solo, un archivo o carpeta, o saltar a otra página.
+- **Mantener presionado:** cada botón puede tener una segunda acción al mantenerlo presionado.
+- **Páginas automáticas:** el panel salta a la página que elijas cuando usas cierta app (un juego, Discord, OBS…) y vuelve al salir.
 - **Monitor del PC:** CPU, RAM, GPU, temperaturas y red.
 - **Temas y reposo:** varios temas, un modo de reposo con reloj, y sonidos y animaciones sutiles al tocar.
 - **Actualizaciones:** avisa en el panel cuando hay una versión nueva en GitHub; con un toque la descarga, la instala y se reinicia.

@@ -20,6 +20,9 @@ var (
 	pickerScroll float32
 
 	edDraft       BotonP2
+	edHoldMode    bool    // editando la acción de "mantener presionado"
+	edMainDraft   BotonP2 // el botón (toque) mientras se edita la otra acción
+	edHoldDraft   BotonP2 // la acción al mantener (Tipo "" = ninguna)
 	edCat         int
 	edIconMode    bool
 	edNameEdited  bool
@@ -72,6 +75,19 @@ func matchesQuery(name string) bool {
 func openPicker(bp, slot int) {
 	pickerBP, pickerSlot = bp, slot
 	edDraft = pageSlots(bp)[slot]
+	edHoldMode = false
+	edHoldDraft = BotonP2{}
+	if edDraft.Hold != nil {
+		edHoldDraft = *edDraft.Hold
+	}
+	edDraft.Hold = nil
+	loadDraftUI()
+	pickerOpen = true
+	startAnim()
+}
+
+// loadDraftUI prepara categoría, buffers y teclado para el borrador actual.
+func loadDraftUI() {
 	edNameEdited = edDraft.Nombre != "" && edDraft.Tipo != "app"
 	edIconMode = false
 	edQuery = ""
@@ -102,8 +118,31 @@ func openPicker(bp, slot int) {
 	default:
 		edCat = 1
 	}
-	pickerOpen = true
-	startAnim()
+}
+
+// setHoldMode cambia entre editar la acción del toque y la de mantener.
+func setHoldMode(on bool) {
+	if on == edHoldMode {
+		return
+	}
+	stopRecording()
+	if on {
+		edMainDraft = edDraft
+		edDraft = edHoldDraft
+		if edDraft.Tipo == "" {
+			edDraft = BotonP2{Tipo: "action", Accion: "empty"}
+		}
+	} else {
+		edHoldDraft = edDraft
+		edDraft = edMainDraft
+	}
+	edHoldMode = on
+	loadDraftUI()
+	invalidate(hwnd)
+}
+
+func holdIsSet(b BotonP2) bool {
+	return b.Tipo != "" && !(b.Tipo == "action" && b.Accion == "empty")
 }
 
 func closePicker() {
@@ -114,7 +153,15 @@ func closePicker() {
 }
 
 func saveEditor() {
+	setHoldMode(false)
 	b := edDraft
+	b.Hold = nil
+	if holdIsSet(edHoldDraft) {
+		h := edHoldDraft
+		h.Hold = nil
+		h.Color, h.Icon = "", ""
+		b.Hold = &h
+	}
 	pageSlots(pickerBP)[pickerSlot] = b
 	saveConfig(cfg)
 	closePicker()
@@ -326,11 +373,71 @@ func paintPicker(c *Canvas) {
 	c.Text(pickerTitle(), semiFont, 21*s, semiStyle, sColText, RectF{20 * s, 14 * s, panelW * 0.5, 40 * s}, AlignNear, AlignCenter)
 	btn(RectF{panelW - 16*s - 120*s, 16 * s, 120 * s, 36 * s}, "Guardar", sColAccent, saveEditor)
 	btn(RectF{panelW - 16*s - 120*s - 10*s - 112*s, 16 * s, 112 * s, 36 * s}, "Cancelar", 0xFF34373C, closePicker)
+	// Toque / Mantener
+	{
+		segW := 112 * s
+		sx := panelW - 16*s - 120*s - 10*s - 112*s - 18*s - segW*2
+		sr := RectF{sx, 16 * s, segW * 2, 36 * s}
+		c.RoundRect(sr.X, sr.Y, sr.W, sr.H, sr.H/2, 0xFF26282C)
+		for k, name := range []string{"Toque", "Mantener"} {
+			on := k == 1
+			r := RectF{sx + float32(k)*segW, sr.Y, segW, sr.H}
+			col, tc := uint32(0x00000000), uint32(sColSub)
+			if edHoldMode == on {
+				col, tc = sColAccent, 0xFFFFFFFF
+			}
+			if fixed(r, func() { setHoldMode(on) }) {
+				col = lighten(col|0xFF000000, 0.12)
+			}
+			if col != 0 {
+				c.RoundRect(r.X+2*s, r.Y+2*s, r.W-4*s, r.H-4*s, (r.H-4*s)/2, col)
+			}
+			c.Text(name, semiFont, 13.5*s, semiStyle, tc, r, AlignCenter, AlignCenter)
+		}
+	}
 
 	// ---- columna izquierda: vista previa, nombre, color, ícono
 	lw := edLeftW()
 	lx := 16 * s
 	y := 66 * s
+	if edHoldMode {
+		paintHoldLeft(c, lx, y, lw, s, btn)
+	} else {
+		paintTapLeft(c, lx, y, lw, s, btn, fixed)
+	}
+	paintEditorRight(c, oy, s, lx, lw, fixed)
+}
+
+func paintHoldLeft(c *Canvas, lx, y, lw, s float32, btn func(RectF, string, uint32, func())) {
+	img, label, col := visualOf(edMainDraft)
+	pr := RectF{lx, y, lw, lw * 0.66}
+	if sn, m := appCardSnap(pr, col, img); sn != nil {
+		c.DrawSnapshot(sn, ri(pr.X)-m, ri(pr.Y)-m)
+		padI := pr.H * 0.11
+		c.TextWrap(label, semiFont, min32(pr.W, pr.H)*0.088, semiStyle, 0xF2FFFFFF,
+			RectF{pr.X + padI, pr.Y + pr.H*0.56, pr.W - 2*padI, pr.H*0.44 - padI*0.8}, AlignNear, AlignFar)
+	}
+	y += pr.H + 16*s
+	c.Text("Al mantener presionado:", textFont, 13*s, FontStyleRegular, sColSub, RectF{lx, y, lw, 20 * s}, AlignNear, AlignCenter)
+	y += 24 * s
+	hl := "Nada"
+	if holdIsSet(edDraft) {
+		_, hl, _ = visualOf(edDraft)
+	}
+	c.RoundRect(lx, y, lw, 44*s, 12*s, 0xFF26282C)
+	c.Text(hl, semiFont, 15*s, semiStyle, sColText, RectF{lx + 14*s, y, lw - 28*s, 44 * s}, AlignNear, AlignCenter)
+	y += 44*s + 12*s
+	if holdIsSet(edDraft) {
+		btn(RectF{lx, y, lw, 38 * s}, "Quitar", 0xFF34373C, func() {
+			edDraft = BotonP2{Tipo: "action", Accion: "empty"}
+			loadDraftUI()
+			invalidate(hwnd)
+		})
+		y += 38*s + 12*s
+	}
+}
+
+func paintTapLeft(c *Canvas, lx, y, lw, s float32, btn func(RectF, string, uint32, func()), fixed func(RectF, func()) bool) {
 	img, label, col := visualOf(edDraft)
 	pr := RectF{lx, y, lw, lw * 0.66}
 	if sn, m := appCardSnap(pr, col, img); sn != nil {
@@ -396,7 +503,9 @@ func paintPicker(c *Canvas) {
 	}
 	btn(RectF{lx, y, half, 38 * s}, "Ícono", ic, func() { edIconMode = !edIconMode; pickerScroll = 0; kbdTarget = nil })
 	btn(RectF{lx + half + 8*s, y, half, 38 * s}, "Auto", 0xFF34373C, func() { edDraft.Icon = ""; invalidate(hwnd) })
+}
 
+func paintEditorRight(c *Canvas, oy, s, lx, lw float32, fixed func(RectF, func()) bool) {
 	// ---- derecha: categorías
 	rx := lx + lw + 18*s
 	rw := panelW - rx - 16*s

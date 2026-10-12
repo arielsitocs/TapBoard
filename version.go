@@ -2,7 +2,7 @@
 
 package main
 
-const appVersion = "2.1.0"
+const appVersion = "2.2.0"
 
 var (
 	pGetClassNameW   = user32.NewProc("GetClassNameW")

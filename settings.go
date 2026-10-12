@@ -555,7 +555,7 @@ func layoutSettings(c *Canvas, w, s float32) float32 {
 			}
 			L.y += bh
 		}
-
+		autoPagesSection(L)
 	}
 	if settingsTab == 3 {
 		// Audio
@@ -997,4 +997,64 @@ func slotGrid(L *sLayout, bp, n, cols int, title string, removable bool) {
 		}
 	}
 	L.y += gp + float32(rows)*(ch+gp)
+}
+
+// ---- páginas automáticas según la app en primer plano
+
+var (
+	ruleStage int // 0 = lista, 1 = eligiendo app, 2 = eligiendo página
+	ruleApps  []openApp
+	ruleSel   openApp
+)
+
+func autoPagesSection(L *sLayout) {
+	L.section("PÁGINAS AUTOMÁTICAS")
+	rows := []sRow{{"Páginas automáticas", "", 56, nil}}
+	switch ruleStage {
+	case 0:
+		for i, r := range cfg.AppPages {
+			i, r := i, r
+			rows = append(rows, sRow{r.Name, r.Exe, 64, buttonCtl(
+				[]string{pageName(r.Page), "Quitar"}, []uint32{0xFF34373C, sColDanger},
+				[]func(){func() {
+					// tocar la página la cambia por la siguiente
+					cfg.AppPages[i].Page = r.Page%numPages() + 1
+					afterSettingChange()
+				}, func() { removeAppPage(i); afterSettingChange() }})})
+		}
+		rows = append(rows, sRow{"Agregar app", "Abre primero la app que quieres agregar", 64, buttonCtl(
+			[]string{"Elegir app…"}, []uint32{sColAccent},
+			[]func(){func() { ruleApps = listOpenApps(); ruleStage = 1; afterSettingChange() }})})
+	case 1:
+		if len(ruleApps) == 0 {
+			rows = append(rows, sRow{"No hay otras apps abiertas", "", 56, nil})
+		}
+		for i, a := range ruleApps {
+			if i == 12 {
+				break
+			}
+			a := a
+			rows = append(rows, sRow{a.Name, a.Exe, 60, buttonCtl(
+				[]string{"Elegir"}, []uint32{sColAccent},
+				[]func(){func() { ruleSel = a; ruleStage = 2; afterSettingChange() }})})
+		}
+		rows = append(rows, sRow{"", "", 56, buttonCtl(
+			[]string{"Cancelar"}, []uint32{0xFF34373C},
+			[]func(){func() { ruleStage = 0; afterSettingChange() }})})
+	case 2:
+		var labels []string
+		var cols []uint32
+		var fns []func()
+		for p := 1; p <= numPages() && p <= 8; p++ {
+			p := p
+			labels = append(labels, itoa(p))
+			cols = append(cols, 0xFF34373C)
+			fns = append(fns, func() { addAppPage(ruleSel, p); ruleStage = 0; afterSettingChange() })
+		}
+		rows = append(rows, sRow{"Página para " + ruleSel.Name, "1 Principal · 2 Botones · 3 Monitor · 4 Mezclador", 72, buttonCtl(labels, cols, fns)})
+		rows = append(rows, sRow{"", "", 56, buttonCtl(
+			[]string{"Cancelar"}, []uint32{0xFF34373C},
+			[]func(){func() { ruleStage = 0; afterSettingChange() }})})
+	}
+	L.card(rows)
 }

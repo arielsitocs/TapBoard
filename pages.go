@@ -174,6 +174,16 @@ func finishReorder(x, y int32) {
 	src := reorderID
 	reorderID = -1
 	dst := hitTest(x, y)
+	if dst == src {
+		// mantener presionado y soltar sin mover = acción secundaria
+		dx, dy := x-downX, y-downY
+		if dx*dx+dy*dy <= int32(panelH*panelH*0.0016) {
+			if bp, i := slotOf(src); runHold(bp, i) {
+				startAnim()
+				return
+			}
+		}
+	}
 	if isSlotID(dst) && dst != src {
 		bp, a := slotOf(src)
 		bp2, b := slotOf(dst)

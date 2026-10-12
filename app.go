@@ -357,6 +357,7 @@ func paint(c *Canvas) {
 	paintSettingsPanel(c)
 	paintPicker(c)
 	paintNotif(c)
+	paintWhatsNew(c)
 }
 
 func paintDots(c *Canvas) {
@@ -676,6 +677,9 @@ func onAnim() {
 	if animToast() {
 		busy = true
 	}
+	if animWhatsNew() {
+		busy = true
+	}
 	if notifFly != 0 {
 		notifDX += float32(notifFly) * panelW * 0.09
 		busy = true
@@ -733,6 +737,11 @@ func pointerDown(id int64, x, y int32) {
 	}
 	lastTouch = time.Now()
 	swallow = false
+	if wnOpen || wnAnim > 0.3 {
+		closeWhatsNew()
+		swallow = true
+		return
+	}
 	if notifHit(x, y) {
 		clickSound()
 		notifPressed = true
@@ -1014,7 +1023,7 @@ func cancelPointer() {
 }
 
 func needsConfirm(t int, enabled bool) bool {
-	if !enabled {
+	if !enabled || runningHold { // mantener presionado ya es un gesto deliberado
 		return false
 	}
 	if pendingTile == t && time.Now().Before(pendingUntil) {
@@ -1183,6 +1192,10 @@ func onTimer() {
 	}
 	receiveNotifs()
 	receiveUpdates()
+	receiveWhatsNew()
+	if tickCount%5 == 0 {
+		checkAutoPage()
+	}
 	checkLongPress()
 	checkIdle()
 	if idle && tickCount%10 == 0 {
@@ -1541,6 +1554,9 @@ func main() {
 	cfg = loadConfig()
 	if exe, err := os.Executable(); err == nil {
 		migrateAutostart(exe)
+		if autostartEnabled() {
+			setAutostart(true, exe) // por si el .exe cambió de nombre o de carpeta
+		}
 	}
 	pickFonts()
 	loadIcons()
@@ -1587,6 +1603,7 @@ func main() {
 	if justUpdated() {
 		toast("TapBoard actualizado a v" + appVersion)
 	}
+	maybeShowWhatsNew()
 	go appsWorker()
 	go pcMonitorWorker()
 	if !demo {

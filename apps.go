@@ -73,15 +73,16 @@ func defaultMainButtons() []BotonP2 {
 // BotonP2 es la configuración de un botón.
 // Tipos: "app", "action", "media", "hotkey", "url", "text", "file", "page".
 type BotonP2 struct {
-	Tipo   string `json:"type"`
-	Accion string `json:"action,omitempty"`
-	Nombre string `json:"name,omitempty"`
-	Ruta   string `json:"path,omitempty"`
-	Color  string `json:"color,omitempty"` // "#RRGGBB" (vacío = automático)
-	Keys   string `json:"keys,omitempty"`  // atajo: "Ctrl+Shift+M"
-	Text   string `json:"text,omitempty"`  // texto a escribir
-	Page   int    `json:"page,omitempty"`  // página a la que ir (1 = principal)
-	Icon   string `json:"icon,omitempty"`  // ícono elegido (vacío = automático)
+	Tipo   string   `json:"type"`
+	Accion string   `json:"action,omitempty"`
+	Nombre string   `json:"name,omitempty"`
+	Ruta   string   `json:"path,omitempty"`
+	Color  string   `json:"color,omitempty"` // "#RRGGBB" (vacío = automático)
+	Keys   string   `json:"keys,omitempty"`  // atajo: "Ctrl+Shift+M"
+	Text   string   `json:"text,omitempty"`  // texto a escribir
+	Page   int      `json:"page,omitempty"`  // página a la que ir (1 = principal)
+	Icon   string   `json:"icon,omitempty"`  // ícono elegido (vacío = automático)
+	Hold   *BotonP2 `json:"hold,omitempty"`  // acción al mantener presionado
 }
 
 func defaultBotones() []BotonP2 {
@@ -277,10 +278,31 @@ func drawSlot(c *Canvas, bp, s int) {
 		col = lighten(col, 0.18)
 	}
 	drawImgTile(c, id, col, img, cap)
+	if h := slotCfg(bp, s).Hold; h != nil && h.Tipo != "" {
+		// puntito: este botón tiene una acción al mantener presionado
+		r := rectOf(id)
+		d := min32(r.W, r.H)
+		c.Circle(r.X+r.W-d*0.11, r.Y+d*0.11, d*0.032, 0xB3FFFFFF)
+	}
 }
 
-func runSlot(bp, i int) {
-	b := slotCfg(bp, i)
+var runningHold bool
+
+func runSlot(bp, i int) { runButton(slotCfg(bp, i), bp, i) }
+
+// runHold ejecuta la acción de "mantener presionado" de un botón (si tiene).
+func runHold(bp, i int) bool {
+	h := slotCfg(bp, i).Hold
+	if h == nil || h.Tipo == "" || (h.Tipo == "action" && h.Accion == "empty") {
+		return false
+	}
+	runningHold = true
+	runButton(*h, bp, i)
+	runningHold = false
+	return true
+}
+
+func runButton(b BotonP2, bp, i int) {
 	_, label, _ := visualOf(b)
 	switch b.Tipo {
 	case "app", "file":
@@ -335,7 +357,9 @@ func runSlot(bp, i int) {
 	case "emoji":
 		keyCombo(0x5B, 0xBE)
 	case "empty":
-		openPicker(bp, i)
+		if !runningHold {
+			openPicker(bp, i)
+		}
 	case "screenshot":
 		r, _, _ := pShellExecuteW.Call(0, wstrPtr("open"), wstrPtr("ms-screenclip:"), 0, 0, SW_SHOWNORMAL)
 		if r <= 32 {

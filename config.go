@@ -24,6 +24,8 @@ type Config struct {
 	Theme             string      `json:"theme"`
 	IdleMinutes       int         `json:"idleMinutes"`
 	CheckUpdates      bool        `json:"checkUpdates"`
+	AppPages          []AppPage   `json:"appPages"`
+	SeenVersion       string      `json:"seenVersion"`
 }
 
 func defaultConfig() Config {
