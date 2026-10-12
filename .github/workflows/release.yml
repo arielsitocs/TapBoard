@@ -1,49 +1,70 @@
 name: Release
 
+# Publica una versión nueva automáticamente cada vez que subes (push) un cambio
+# en version.go con un número que todavía no tiene Release.
+# También se puede lanzar a mano desde la pestaña Actions.
+
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+    paths: ["version.go"]
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Versión a publicar (ej. 2.0.1)"
-        required: true
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Leer versión de version.go
+        id: v
+        run: |
+          V=$(grep -oP 'appVersion\s*=\s*"\K[^"]+' version.go)
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          if git rev-parse "v$V" >/dev/null 2>&1; then
+            echo "La versión v$V ya está publicada, no hay nada que hacer."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Lista de cambios
+        if: steps.v.outputs.exists == 'false'
+        run: |
+          PREV=$(git describe --tags --abbrev=0 2>/dev/null || true)
+          {
+            echo "## Cambios"
+            if [ -n "$PREV" ]; then
+              git log "$PREV"..HEAD --no-merges --pretty='- %s'
+            else
+              git log --no-merges --pretty='- %s'
+            fi
+          } > notes.md
+          cat notes.md
 
       - uses: actions/setup-go@v5
+        if: steps.v.outputs.exists == 'false'
         with:
           go-version: "1.24"
 
-      - name: Versión
-        id: v
-        run: |
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            V="${{ github.event.inputs.version }}"
-          else
-            V="${GITHUB_REF_NAME#v}"
-          fi
-          echo "version=$V" >> "$GITHUB_OUTPUT"
-
       - name: Compilar TapBoard.exe
+        if: steps.v.outputs.exists == 'false'
         env:
           GOOS: windows
           GOARCH: amd64
           CGO_ENABLED: "0"
-        run: |
-          go build -trimpath -ldflags "-H windowsgui -s -w" -o TapBoard.exe .
+        run: go build -trimpath -ldflags "-H windowsgui -s -w" -o TapBoard.exe .
 
       - name: Publicar release
+        if: steps.v.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.v.outputs.version }}
           name: TapBoard v${{ steps.v.outputs.version }}
-          generate_release_notes: true
+          body_path: notes.md
           files: TapBoard.exe

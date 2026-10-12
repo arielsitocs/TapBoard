@@ -65,10 +65,10 @@ windres -O coff -o rsrc_windows_amd64.syso brand/tapboard.rc
 
 ## Publicar una versión
 
-1. Sube el número en `version.go` (`appVersion`) y en `brand/tapboard.rc`.
-2. Crea un tag `vX.Y.Z` y súbelo, o ejecuta a mano el workflow **Release** desde la pestaña *Actions*.
+1. Sube el número en `version.go` (`appVersion`).
+2. Haz commit y push a `main`.
 
-GitHub Actions compila el `.exe` y lo publica en Releases.
+GitHub Actions detecta el número nuevo, compila `TapBoard.exe` y lo publica en Releases con la lista de cambios. Las apps instaladas lo ven y ofrecen actualizar. Si el número no cambió, no se publica nada.
 
 ## Estructura
 
