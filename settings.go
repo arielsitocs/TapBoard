@@ -594,6 +594,28 @@ func layoutSettings(c *Canvas, w, s float32) float32 {
 
 	}
 	if settingsTab == 5 {
+		// Actualizaciones
+		L.section("ACTUALIZACIONES")
+		label, col := "Buscar ahora", uint32(0xFF34373C)
+		if updState == updAvailable {
+			label, col = "Actualizar a "+updVersion, sColAccent
+		} else if updState == updDownloading {
+			label = "Descargando…"
+		}
+		L.card([]sRow{
+			{"TapBoard v" + appVersion, updStatusText(), 64, buttonCtl(
+				[]string{label}, []uint32{col},
+				[]func(){startUpdate})},
+			{"Buscar automáticamente", "", 64, toggleCtl(
+				func() bool { return cfg.CheckUpdates },
+				func(b bool) {
+					cfg.CheckUpdates = b
+					if b {
+						go checkLatest(false)
+					}
+				}, true)},
+		})
+
 		// Respaldo
 		L.section("RESPALDO")
 		L.card([]sRow{

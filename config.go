@@ -23,6 +23,7 @@ type Config struct {
 	MainButtons       []BotonP2   `json:"mainButtons"`
 	Theme             string      `json:"theme"`
 	IdleMinutes       int         `json:"idleMinutes"`
+	CheckUpdates      bool        `json:"checkUpdates"`
 }
 
 func defaultConfig() Config {
@@ -42,6 +43,7 @@ func defaultConfig() Config {
 		MainButtons:       defaultMainButtons(),
 		Theme:             "dark",
 		IdleMinutes:       3,
+		CheckUpdates:      true,
 	}
 }
 

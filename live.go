@@ -168,13 +168,18 @@ func paintNotif(c *Canvas) {
 	}
 	c.RoundRect(r.X, r.Y+r.H*0.06, r.W, r.H, rad, 0x66000000) // sombra
 	top, bot := uint32(0xFF1F6B47), uint32(0xFF16523A)
+	icon := icons["speech_balloon"]
+	if isUpdateBanner() {
+		top, bot = 0xFF2F63E0, 0xFF2346B0
+		icon = icons["tapboard_logo"]
+	}
 	if notifPressed {
 		top, bot = lighten(top, 0.1), lighten(bot, 0.1)
 	}
 	c.RoundRectGrad(r.X, r.Y, r.W, r.H, rad, top, bot)
 	is := r.H * 0.56
 	ix := r.X + r.H*0.24
-	c.DrawImage(icons["speech_balloon"], ix, r.Y+(r.H-is)/2, is, is)
+	c.DrawImage(icon, ix, r.Y+(r.H-is)/2, is, is)
 	tx := ix + is + r.H*0.2
 	tw := r.X + r.W - tx - r.H*0.3
 	more := ""
@@ -187,7 +192,7 @@ func paintNotif(c *Canvas) {
 			RectF{r.X + r.W - r.H*0.25 - mw, r.Y + (r.H-r.H*0.36)/2, mw, r.H * 0.36}, AlignCenter, AlignCenter)
 	}
 	body := notifCur.Body
-	if !cfg.WhatsAppTexto || body == "" {
+	if !isUpdateBanner() && (!cfg.WhatsAppTexto || body == "") {
 		body = "Nuevo mensaje"
 	}
 	c.Text(notifCur.Title, semiFont, r.H*0.22, semiStyle, colWhite, RectF{tx, r.Y + r.H*0.14, tw, r.H * 0.36}, AlignNear, AlignCenter)

@@ -898,7 +898,11 @@ func pointerUp(id int64, x, y int32, touch bool) {
 			notifShown = false
 			notifMore = 0
 			notifDX, notifDY = 0, 0
-			openWhatsApp()
+			if isUpdateBanner() {
+				startUpdate()
+			} else {
+				openWhatsApp()
+			}
 		default:
 			notifDX, notifDY = 0, 0 // vuelve a su lugar
 		}
@@ -1178,6 +1182,7 @@ func onTimer() {
 		updateMedia()
 	}
 	receiveNotifs()
+	receiveUpdates()
 	checkLongPress()
 	checkIdle()
 	if idle && tickCount%10 == 0 {
@@ -1510,9 +1515,19 @@ func main() {
 			return
 		}
 	}
-	_, _, err := pCreateMutexW.Call(0, 0, wstrPtr("TapBoard_UnicaInstancia"))
-	if errno, ok := err.(syscall.Errno); ok && errno == 183 {
-		return
+	// Después de actualizar, la versión anterior puede tardar un momento en cerrarse.
+	for try := 0; ; try++ {
+		h, _, err := pCreateMutexW.Call(0, 0, wstrPtr("TapBoard_UnicaInstancia"))
+		if errno, ok := err.(syscall.Errno); ok && errno == 183 {
+			pCloseHandle.Call(h)
+			if justUpdated() && try < 40 {
+				time.Sleep(250 * time.Millisecond)
+				continue
+			}
+			return
+		}
+		instanceMutex = h
+		break
 	}
 
 	pid, _, _ := pGetCurrentProcessId.Call()
@@ -1567,6 +1582,11 @@ func main() {
 	pShowWindow.Call(hwnd, SW_SHOWNOACTIVATE)
 	resetWhatsApp()
 	go whatsappWatcher()
+	go updateWorker()
+	go cleanupOldExe()
+	if justUpdated() {
+		toast("TapBoard actualizado a v" + appVersion)
+	}
 	go appsWorker()
 	go pcMonitorWorker()
 	if !demo {

@@ -27,6 +27,7 @@
 - **Editor de botones al estilo Stream Deck:** un botón puede abrir una app, una acción del sistema, un control multimedia, un atajo de teclado (que se graba al pulsarlo), una URL, un texto que se escribe solo, un archivo o carpeta, o saltar a otra página.
 - **Monitor del PC:** CPU, RAM, GPU, temperaturas y red.
 - **Temas y reposo:** varios temas, un modo de reposo con reloj, y sonidos y animaciones sutiles al tocar.
+- **Actualizaciones:** avisa en el panel cuando hay una versión nueva en GitHub; con un toque la descarga, la instala y se reinicia.
 - **Sin foco:** la ventana nunca se activa, así que se puede usar mientras juegas o escribes.
 
 <p align="center">
@@ -37,10 +38,10 @@
 ## Instalación
 
 1. Descarga `TapBoard.exe` desde [Releases](../../releases/latest).
-2. Ponlo en una carpeta fija (por ejemplo `C:\Program Files\TapBoard\`) y ábrelo.
+2. Ponlo en una carpeta tuya que no sea de sistema (por ejemplo `C:\Users\<tú>\TapBoard\`) y ábrelo. Evita `Program Files`, porque ahí la app no puede actualizarse sola.
 3. Desde el engranaje ⚙ puedes elegir el monitor, activar el inicio con Windows y entrar a la configuración.
 
-La configuración se guarda en `%APPDATA%\TapBoard\config.json`.
+La configuración se guarda en `%APPDATA%\TapBoard\config.json`. Desde la versión 2.1.0 la app se actualiza sola (Configuración → Sistema).
 
 ## Compilar
 
