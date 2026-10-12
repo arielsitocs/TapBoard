@@ -11,8 +11,10 @@ import (
 	"time"
 )
 
-var themeKeys = []string{"dark", "oled", "graphite", "midnight"}
-var themeLabels = []string{"Oscuro", "OLED", "Grafito", "Medianoche"}
+var themeKeys = []string{"glass", "dark", "oled", "graphite", "midnight"}
+var themeLabels = []string{"Vidrio", "Oscuro", "OLED", "Grafito", "Noche"}
+
+func isGlass() bool { return cfg.Theme == "glass" }
 
 func themeIndex() int {
 	for i, k := range themeKeys {
@@ -31,6 +33,8 @@ func themeBG() uint32 {
 		return 0xFF1F2023
 	case "midnight":
 		return 0xFF0B1220
+	case "glass":
+		return 0xFF0A0C12
 	}
 	return colBG
 }

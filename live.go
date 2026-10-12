@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync/atomic"
 	"time"
 )
@@ -184,7 +185,7 @@ func paintNotif(c *Canvas) {
 	tw := r.X + r.W - tx - r.H*0.3
 	more := ""
 	if notifMore > 0 {
-		more = "+" + itoa(notifMore)
+		more = "+" + itoa(min(notifMore, 99))
 		mw := r.H * 0.55
 		tw -= mw
 		c.RoundRect(r.X+r.W-r.H*0.25-mw, r.Y+(r.H-r.H*0.36)/2, mw, r.H*0.36, r.H*0.18, 0x40FFFFFF)
@@ -199,20 +200,7 @@ func paintNotif(c *Canvas) {
 	c.Text(body, textFont, r.H*0.19, FontStyleRegular, 0xD9FFFFFF, RectF{tx, r.Y + r.H*0.5, tw, r.H * 0.34}, AlignNear, AlignCenter)
 }
 
-func itoa(n int) string {
-	if n > 99 {
-		return "99"
-	}
-	s := ""
-	if n == 0 {
-		return "0"
-	}
-	for n > 0 {
-		s = string(rune('0'+n%10)) + s
-		n /= 10
-	}
-	return s
-}
+func itoa(n int) string { return strconv.Itoa(n) }
 
 func notifHit(x, y int32) bool {
 	return notifShown && notifAnim > 0.5 && inRect(notifRect(), float32(x), float32(y))

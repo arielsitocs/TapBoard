@@ -1552,6 +1552,10 @@ func main() {
 		return
 	}
 	cfg = loadConfig()
+	if versionNewer("2.3.0", cfg.SeenVersion) {
+		cfg.Theme = "glass" // el rediseño de la 2.3.0 se estrena activado
+		saveConfig(cfg)
+	}
 	if exe, err := os.Executable(); err == nil {
 		migrateAutostart(exe)
 		if autostartEnabled() {

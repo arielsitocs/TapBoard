@@ -467,7 +467,7 @@ func layoutSettings(c *Canvas, w, s float32) float32 {
 				func(i int) { cfg.Monitor = i })},
 			{"Tema", "", 64, segmentCtl(themeLabels,
 				themeIndex,
-				func(i int) { cfg.Theme = themeKeys[i] })},
+				func(i int) { cfg.Theme = themeKeys[i]; applyIconSet() })},
 			{"Reposo", "", 64, segmentCtl([]string{"Nunca", "1", "3", "5", "10"},
 				idleIndex,
 				func(i int) { cfg.IdleMinutes = idleOptions[i] })},

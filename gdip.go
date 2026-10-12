@@ -495,6 +495,7 @@ func newSnapshot(w, h int) (*Snapshot, *Canvas) {
 	gSetSmoothingMode.Call(c.g, 4)
 	gSetPixelOffsetMode.Call(c.g, 4)
 	gSetTextRenderingHint.Call(c.g, 4)
+	c.Clear(0) // la memoria nueva puede traer basura: partir transparente
 	return sn, c
 }
 

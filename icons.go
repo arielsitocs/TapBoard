@@ -13,15 +13,39 @@ import (
 
 // Íconos: Microsoft Fluent Emoji (licencia MIT).
 //
-//go:embed icons/*.png
+//go:embed icons/*.png icons_flat/*.png
 var iconFS embed.FS
 
-var icons = map[string]*Image{}
+var (
+	icons     = map[string]*Image{}
+	icons3D   = map[string]*Image{}
+	iconsFlat = map[string]*Image{}
+)
 
 func loadIcons() {
-	entries, _ := iconFS.ReadDir("icons")
+	loadIconDir("icons", "_3d.png", icons3D)
+	loadIconDir("icons_flat", "_flat.png", iconsFlat)
+	applyIconSet()
+}
+
+// applyIconSet elige los íconos según el tema: planos en "Vidrio", 3D en el resto.
+func applyIconSet() {
+	m := map[string]*Image{}
+	for k, v := range icons3D {
+		m[k] = v
+	}
+	if isGlass() {
+		for k, v := range iconsFlat {
+			m[k] = v
+		}
+	}
+	icons = m
+}
+
+func loadIconDir(dir, suffix string, dst map[string]*Image) {
+	entries, _ := iconFS.ReadDir(dir)
 	for _, e := range entries {
-		data, err := iconFS.ReadFile("icons/" + e.Name())
+		data, err := iconFS.ReadFile(dir + "/" + e.Name())
 		if err != nil {
 			continue
 		}
@@ -32,10 +56,13 @@ func loadIcons() {
 		b := img.Bounds()
 		rgba := image.NewNRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
 		draw.Draw(rgba, rgba.Bounds(), img, b.Min, draw.Src)
-		name := e.Name()[:len(e.Name())-len("_3d.png")]
+		if !strings.HasSuffix(e.Name(), suffix) {
+			continue
+		}
+		name := strings.TrimSuffix(e.Name(), suffix)
 		centered := centerContent(rgba)
-		icons[name] = newImage(centered.Rect.Dx(), centered.Rect.Dy(), centered.Pix)
-		icons[name].mono = strings.HasPrefix(name, "fx_")
+		dst[name] = newImage(centered.Rect.Dx(), centered.Rect.Dy(), centered.Pix)
+		dst[name].mono = strings.HasPrefix(name, "fx_")
 	}
 }
 

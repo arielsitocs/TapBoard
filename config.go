@@ -43,7 +43,7 @@ func defaultConfig() Config {
 		Botones:           defaultBotones(),
 		Sonidos:           true,
 		MainButtons:       defaultMainButtons(),
-		Theme:             "dark",
+		Theme:             "glass",
 		IdleMinutes:       3,
 		CheckUpdates:      true,
 	}

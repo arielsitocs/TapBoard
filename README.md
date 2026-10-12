@@ -28,7 +28,7 @@
 - **Mantener presionado:** cada botón puede tener una segunda acción al mantenerlo presionado.
 - **Páginas automáticas:** el panel salta a la página que elijas cuando usas cierta app (un juego, Discord, OBS…) y vuelve al salir.
 - **Monitor del PC:** CPU, RAM, GPU, temperaturas y red.
-- **Temas y reposo:** varios temas, un modo de reposo con reloj, y sonidos y animaciones sutiles al tocar.
+- **Temas y reposo:** tema Vidrio (botones translúcidos sobre luces de color, íconos planos) y otros más sobrios, un modo de reposo con reloj, y sonidos y animaciones sutiles al tocar.
 - **Actualizaciones:** avisa en el panel cuando hay una versión nueva en GitHub; con un toque la descarga, la instala y se reinicia.
 - **Sin foco:** la ventana nunca se activa, así que se puede usar mientras juegas o escribes.
 

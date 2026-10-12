@@ -30,12 +30,20 @@ func glassCard(c *Canvas, x, y, w, h, rad float32, col uint32) {
 // flatCard: tarjeta plana (estilo minimalista), en caché.
 func flatCard(c *Canvas, x, y, w, h, rad float32, col uint32) {
 	iw, ih := ri(w), ri(h)
-	key := "flat|" + itoa(iw) + "|" + itoa(ih) + "|" + itoa(ri(rad)) + "|" + hex32(col)
-	sn := cachedRender(key, iw+4, ih+4, func(cc *Canvas) {
-		cc.RoundRect(2, 2, float32(iw), float32(ih), rad, col)
+	if isGlass() {
+		rad *= 0.62
+	}
+	key := "flat|" + itoa(iw) + "|" + itoa(ih) + "|" + itoa(ri(rad)) + "|" + hex32(col) + "|" + boolS(isGlass())
+	m := 2 + int(float32(ih)*0.04)
+	sn := cachedRender(key, iw+2*m, ih+2*m, func(cc *Canvas) {
+		if isGlass() {
+			frost(cc, float32(m), float32(m), float32(iw), float32(ih), rad)
+			return
+		}
+		cc.RoundRect(float32(m), float32(m), float32(iw), float32(ih), rad, col)
 	})
 	if sn != nil {
-		c.DrawSnapshot(sn, ri(x)-2, ri(y)-2)
+		c.DrawSnapshot(sn, ri(x)-m, ri(y)-m)
 	}
 }
 
@@ -63,8 +71,8 @@ func iconGlow(c *Canvas, cx, cy, s float32, col uint32) {
 func paintBackground(c *Canvas) {
 	bg := themeBG()
 	w, h := ri(panelW), ri(panelH)
-	sn := cachedRender("bg|"+itoa(w)+"|"+itoa(h)+"|"+hex32(bg), w, h, func(cc *Canvas) {
-		cc.RoundRectGrad(-1, -1, float32(w)+2, float32(h)+2, 0, lighten(bg, 0.05), darken(bg, 0.25))
+	sn := cachedRender("bg|"+itoa(w)+"|"+itoa(h)+"|"+hex32(bg)+"|"+cfg.Theme, w, h, func(cc *Canvas) {
+		drawThemeBackground(cc, w, h)
 	})
 	if sn != nil {
 		c.DrawSnapshot(sn, 0, 0)
@@ -202,7 +210,7 @@ var (
 // blitBackground copia el fondo (dibujado una vez) al búfer con GDI, que es
 // muchísimo más rápido que pintarlo con GDI+ en cada cuadro.
 func blitBackground(hdc uintptr, w, h int32) {
-	key := itoa(int(w)) + "|" + itoa(int(h)) + "|" + hex32(themeBG())
+	key := itoa(int(w)) + "|" + itoa(int(h)) + "|" + hex32(themeBG()) + "|" + cfg.Theme
 	if bgDC == 0 || key != bgKey {
 		if bgDC != 0 {
 			pSelectObject.Call(bgDC, bgOld)
@@ -213,9 +221,7 @@ func blitBackground(hdc uintptr, w, h int32) {
 		bgBmp, _, _ = pCreateCompatibleBitmap.Call(hdc, uintptr(w), uintptr(h))
 		bgOld, _, _ = pSelectObject.Call(bgDC, bgBmp)
 		c := newCanvas(bgDC)
-		bg := themeBG()
-		c.Clear(bg)
-		c.RoundRectGrad(-1, -1, float32(w)+2, float32(h)+2, 0, lighten(bg, 0.05), darken(bg, 0.25))
+		drawThemeBackground(c, int(w), int(h))
 		c.Close()
 		bgKey = key
 	}
@@ -283,14 +289,18 @@ func volCardBG(c *Canvas, r RectF) {
 	}
 	m := 3 + int(r.H*0.06)
 	iw, ih := ri(r.W), ri(r.H)
-	key := "volbg|" + itoa(iw) + "|" + itoa(ih) + "|" + hex32(col) + "|" + itoa(amb)
+	key := "volbg|" + itoa(iw) + "|" + itoa(ih) + "|" + hex32(col) + "|" + itoa(amb) + "|" + boolS(isGlass())
 	if show {
 		key += "|m|" + itoa(thumb) + "|" + boolS(media.End > 0) + "|" + boolS(aud.Muted)
 	}
 	sn := cachedRender(key, iw+2*m, ih+2*m, func(cc *Canvas) {
 		x, y := float32(m), float32(m)
 		rr := RectF{x, y, float32(iw), float32(ih)}
-		cc.RoundRect(x, y, float32(iw), float32(ih), rad, col)
+		if isGlass() {
+			frost(cc, x, y, float32(iw), float32(ih), rad)
+		} else {
+			cc.RoundRect(x, y, float32(iw), float32(ih), rad, col)
+		}
 		if amb != 0 {
 			drawAmbientRaw(cc, rr, rad)
 		}
@@ -373,7 +383,20 @@ func drawCached(c *Canvas, i int, sn *Snapshot, m int) RectF {
 }
 
 // Estilo 1 (página principal): minimalista, un solo color, ícono centrado.
-func minimalRadius(r RectF) float32 { return min32(r.W, r.H) * 0.26 }
+func minimalRadius(r RectF) float32 {
+	if isGlass() {
+		return min32(r.W, r.H) * 0.15 // esquinas más sutiles en el vidrio
+	}
+	return min32(r.W, r.H) * 0.26
+}
+
+// cardRadius: radio de las tarjetas de las páginas de botones.
+func cardRadius(base float32) float32 {
+	if isGlass() {
+		return base * 0.12
+	}
+	return base * 0.2
+}
 
 func drawMinimalTile(c *Canvas, i int, col uint32, img *Image, caption string) {
 	r := rectOf(i)
@@ -385,6 +408,10 @@ func drawMinimalTile(c *Canvas, i int, col uint32, img *Image, caption string) {
 		s = base * 0.36
 		cyOff = r.H * 0.40
 	}
+	glass := isGlass()
+	if glass {
+		s *= 0.8 // íconos más livianos en el vidrio
+	}
 	if img != nil && img.mono {
 		s *= 0.78
 	}
@@ -395,10 +422,17 @@ func drawMinimalTile(c *Canvas, i int, col uint32, img *Image, caption string) {
 		imgID = img.id
 	}
 	rad := minimalRadius(r)
-	key := "min|" + itoa(iw) + "|" + itoa(ih) + "|" + hex32(col) + "|" + itoa(imgID) + "|" + itoa(ri(s)) + "|" + itoa(ri(cyOff))
+	if glass {
+		m = 2 + int(r.H*0.04)
+	}
+	key := "min|" + itoa(iw) + "|" + itoa(ih) + "|" + hex32(col) + "|" + itoa(imgID) + "|" + itoa(ri(s)) + "|" + itoa(ri(cyOff)) + "|" + boolS(glass)
 	sn := cachedRender(key, iw+2*m, ih+2*m, func(cc *Canvas) {
 		x, y := float32(m), float32(m)
-		cc.RoundRect(x, y, float32(iw), float32(ih), rad, col)
+		if glass {
+			frost(cc, x, y, float32(iw), float32(ih), rad)
+		} else {
+			cc.RoundRect(x, y, float32(iw), float32(ih), rad, col)
+		}
 		if img != nil {
 			cx, cy := x+float32(iw)/2, y+cyOff
 			cc.drawImageHQ(img, cx-s/2, cy-s/2, s, s)
@@ -410,7 +444,11 @@ func drawMinimalTile(c *Canvas, i int, col uint32, img *Image, caption string) {
 	vr := drawCached(c, i, sn, m)
 	// al presionar se ilumina con un acento del mismo color
 	if pa := pressAnim[i]; pa > 0.01 {
-		c.RoundRect(vr.X, vr.Y, vr.W, vr.H, minimalRadius(vr), uint32(70*pa)<<24|lighten(col, 0.6)&0xFFFFFF)
+		if glass {
+			c.RoundRect(vr.X, vr.Y, vr.W, vr.H, minimalRadius(vr), uint32(40*pa)<<24|0xFFFFFF)
+		} else {
+			c.RoundRect(vr.X, vr.Y, vr.W, vr.H, minimalRadius(vr), uint32(70*pa)<<24|lighten(col, 0.6)&0xFFFFFF)
+		}
 	}
 	if caption != "" {
 		cr := RectF{vr.X + vr.W*0.06, vr.Y + vr.H*0.64, vr.W * 0.88, vr.H * 0.28}
@@ -447,7 +485,7 @@ func drawAppCard(c *Canvas, i int, col uint32, img *Image, caption string) {
 		return
 	}
 	base := min32(r.W, r.H)
-	rad := base * 0.2
+	rad := cardRadius(base)
 	padI := r.H * 0.11
 	vr := drawCached(c, i, sn, m)
 	if pa := pressAnim[i]; pa > 0.01 {
@@ -456,18 +494,26 @@ func drawAppCard(c *Canvas, i int, col uint32, img *Image, caption string) {
 	if caption != "" {
 		k := vr.W / r.W
 		cr := RectF{vr.X + padI*k, vr.Y + vr.H*0.56, vr.W - 2*padI*k, vr.H*0.44 - padI*k*0.8}
-		c.TextWrap(caption, semiFont, base*0.088, semiStyle, 0xF2FFFFFF, cr, AlignNear, AlignFar)
+		fs := base * 0.088
+		if isGlass() {
+			fs = base * 0.078
+		}
+		c.TextWrap(caption, semiFont, fs, semiStyle, 0xF2FFFFFF, cr, AlignNear, AlignFar)
 	}
 }
 
 func appCardSnap(r RectF, col uint32, img *Image) (*Snapshot, int) {
 	cc0 := cardColor(col)
 	base := min32(r.W, r.H)
-	rad := base * 0.2
+	rad := cardRadius(base)
 	padI := r.H * 0.11
 	is := base * 0.34
 	if img != nil && img.mono {
 		is = base * 0.27
+	}
+	glass := isGlass()
+	if glass {
+		is = base * 0.24
 	}
 	m := 3 + int(r.H*0.05)
 	iw, ih := ri(r.W), ri(r.H)
@@ -475,10 +521,19 @@ func appCardSnap(r RectF, col uint32, img *Image) (*Snapshot, int) {
 	if img != nil {
 		imgID = img.id
 	}
-	key := "card|" + itoa(iw) + "|" + itoa(ih) + "|" + hex32(cc0) + "|" + itoa(imgID)
+	key := "card|" + itoa(iw) + "|" + itoa(ih) + "|" + hex32(cc0) + "|" + itoa(imgID) + "|" + boolS(glass)
 	sn := cachedRender(key, iw+2*m, ih+2*m, func(cc *Canvas) {
 		x, y := float32(m), float32(m)
 		w, h := float32(iw), float32(ih)
+		if glass {
+			frost(cc, x, y, w, h, rad)
+			if img != nil {
+				cc.drawImageHQ(img, x+padI, y+padI, is, is)
+			} else {
+				cc.Text("+", textFont, h*0.3, FontStyleRegular, 0x55FFFFFF, RectF{x, y, w, h * 0.8}, AlignCenter, AlignCenter)
+			}
+			return
+		}
 		cc.RoundRect(x, y+3, w, h, rad, 0x38000000) // sombra suave
 		cc.RoundRectGradMode(x, y, w, h, rad, lighten(cc0, 0.22), darken(cc0, 0.22), 2)
 		// brillo suave arriba
