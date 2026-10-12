@@ -1,0 +1,10 @@
+# Binarios compilados
+*.exe
+*.zip
+dist/
+
+# Archivos de prueba / temporales
+brand/preview32.png
+*.log
+.DS_Store
+Thumbs.db
