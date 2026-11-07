@@ -525,7 +525,7 @@ func drawVolume(c *Canvas) {
 		if pressed == tGear {
 			bg = lighten(gRaised, 0.08)
 		}
-		c.RoundRect(g.X, g.Y, g.W, g.H, g.W*0.3, bg)
+		c.RoundRect(g.X, g.Y, g.W, g.H, g.W*0.25, bg)
 		gc = 0xFFB5BAC4
 		if pressed == tGear {
 			gc = gText
@@ -842,11 +842,21 @@ func pointerDown(id int64, x, y int32) {
 		setVolumeFromX(x)
 	}
 	if t >= 2000 && t < 2100 {
-		mixDrag = t - 2000
-		mixerSetFrom(mixDrag, x, y)
+		if isGrafito() {
+			// barra vertical: se espera a ver hacia dónde va el dedo. Hacia
+			// arriba o abajo mueve el volumen; hacia el lado cambia de página.
+			mixPending = t - 2000
+		} else {
+			mixDrag = t - 2000
+			mixerSetFrom(mixDrag, x, y)
+		}
 	}
 	startAnim()
 }
+
+// mixPending: el dedo bajó sobre una barra del mezclador y todavía no se sabe
+// si va a mover el volumen o a deslizar de página.
+var mixPending = -1
 
 func pointerMove(id int64, x, y int32) {
 	if id != activePointer || swallow {
@@ -893,6 +903,19 @@ func pointerMove(id int64, x, y int32) {
 	}
 	dx := float32(x - downX)
 	dy := float32(y - downY)
+	if mixPending >= 0 && !swiping {
+		adx, ady := math.Abs(float64(dx)), math.Abs(float64(dy))
+		switch {
+		case ady > float64(panelH*0.018) && ady > adx*1.2:
+			mixDrag, mixPending = mixPending, -1 // vertical: volumen
+			mixerSetFrom(mixDrag, x, y)
+			return
+		case adx > float64(panelW*0.025) && adx > ady:
+			mixPending = -1 // horizontal: sigue abajo como cambio de página
+		default:
+			return // todavía no está claro
+		}
+	}
 	if vswiping {
 		invalidate(hwnd)
 		return
@@ -1028,6 +1051,11 @@ func pointerUp(id int64, x, y int32, touch bool) {
 		startAnim()
 		return
 	}
+	if mixPending >= 0 {
+		// un toque sin arrastrar: deja el volumen donde se tocó
+		mixerSetFrom(mixPending, x, y)
+		mixPending = -1
+	}
 	t := hitTest(x, y)
 	wasDragging := dragging
 	wasSwiping := swiping
@@ -1066,6 +1094,7 @@ func cancelPointer() {
 	swallow = false
 	seeking = false
 	mixDrag = -1
+	mixPending = -1
 	vswiping = false
 	reorderID = -1
 	notifPressed = false

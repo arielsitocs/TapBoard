@@ -84,36 +84,78 @@ func gStatCard(c *Canvas, r RectF, st gStat) {
 		}
 		return
 	}
-	if len(st.hist) == 0 {
+	_, _ = gh, gy
+	col := uint32(gAccent)
+	if st.valueCol == gWarn {
+		col = gWarn
+	}
+	gAreaChart(c, r, st.hist, st.histMax, col)
+}
+
+// gAreaChart: gráfico de área del último minuto al fondo de la tarjeta, de
+// borde a borde. Línea suave con relleno tenue, una guía al 50 % y un punto
+// en el valor actual. Con pocos datos crece desde la derecha.
+func gAreaChart(c *Canvas, r RectF, hist []float64, maxV float64, col uint32) {
+	if len(hist) < 2 {
 		return
 	}
-	const n = 24
-	h := st.hist
-	if len(h) > n {
-		h = h[len(h)-n:]
+	h := hist
+	if len(h) > histLen {
+		h = h[len(h)-histLen:]
 	}
-	mx := st.histMax
-	if mx <= 0 {
-		for _, v := range h {
-			mx = math.Max(mx, v)
+	// suavizado ligero (media de 3) para que la curva no se vea dentada
+	sm := make([]float64, len(h))
+	for i := range h {
+		a, b := i-1, i+1
+		if a < 0 {
+			a = 0
 		}
-		mx *= 1.15
-		if mx <= 0 {
-			mx = 1
+		if b >= len(h) {
+			b = len(h) - 1
+		}
+		sm[i] = (h[a] + h[i]*2 + h[b]) / 4
+	}
+	if maxV <= 0 {
+		for _, v := range sm {
+			maxV = math.Max(maxV, v)
+		}
+		maxV *= 1.25
+		if maxV <= 0 {
+			maxV = 1
 		}
 	}
-	gap := r.W * 0.008
-	bw := (r.W - 2*p - gap*float32(n-1)) / n
-	off := n - len(h) // pocos datos: se alinean a la derecha
-	for i, v := range h {
-		bh := gh * float32(math.Max(0.08, math.Min(v/mx, 1)))
-		x := r.X + p + float32(i+off)*(bw+gap)
-		col := uint32(gTrack)
-		if i == len(h)-1 {
-			col = gAccent
-		}
-		c.RoundRect(x, gy+gh-bh, bw, bh, bw*0.3, col)
+	gh := r.H * 0.36
+	bottom := r.Y + r.H
+	rad := gRadius(r)
+	right := r.X + r.W - r.H*0.08 // el punto del valor actual queda dentro de la tarjeta
+	step := (right - r.X) / float32(histLen-1)
+	x0 := right - step*float32(len(sm)-1)
+	pts := make([]PointF, len(sm))
+	for i, v := range sm {
+		f := float32(math.Max(0, math.Min(v/maxV, 1)))
+		pts[i] = PointF{x0 + step*float32(i), bottom - gh*0.08 - f*gh*0.84}
 	}
+	c.ClipRoundRect(r.X, r.Y, r.W, r.H, rad)
+	// guía al 50 %
+	gy := bottom - gh*0.08 - gh*0.42
+	for x := r.X + rad*0.6; x < r.X+r.W-rad*0.6; x += 10 {
+		c.Line(x, gy, x+4, gy, 1, 0x14FFFFFF)
+	}
+	area := append([]PointF{{pts[0].X, bottom}}, pts...)
+	area = append(area, PointF{right, bottom})
+	c.FillPoly(area, col&0x00FFFFFF|0x2E000000)
+	// franja más intensa pegada a la línea, para dar sensación de degradado
+	band := make([]PointF, 0, len(pts)*2)
+	band = append(band, pts...)
+	for i := len(pts) - 1; i >= 0; i-- {
+		band = append(band, PointF{pts[i].X, pts[i].Y + gh*0.12})
+	}
+	c.FillPoly(band, col&0x00FFFFFF|0x24000000)
+	c.Polyline(pts, 2.2, col)
+	c.ResetClip()
+	last := pts[len(pts)-1]
+	c.Circle(last.X, last.Y, 7, col&0x00FFFFFF|0x40000000)
+	c.Circle(last.X, last.Y, 3.6, col)
 }
 
 func upper(s string) string {
@@ -288,11 +330,11 @@ func gPaintMixer(c *Canvas) {
 		if mixDrag == i {
 			bg = lighten(bg, 0.04)
 		}
-		c.RoundRect(r.X, r.Y, r.W, r.H, min32(r.W, r.H)*0.14, bg)
+		c.RoundRect(r.X, r.Y, r.W, r.H, min32(r.W, r.H)*0.115, bg)
 		// ícono de la app
 		cx := r.X + (r.W-chip)/2
 		cy := r.Y + p
-		c.RoundRect(cx, cy, chip, chip, chip*0.31, gRaised)
+		c.RoundRect(cx, cy, chip, chip, chip*0.27, gRaised)
 		if a.system {
 			is := chip * 0.5
 			gIcon(c, nil, glyphs["speaker_high_volume"], cx+(chip-is)/2, cy+(chip-is)/2, is, gText)

@@ -28,7 +28,7 @@ const (
 
 func isGrafito() bool { return cfg.Theme == "grafito" }
 
-func gRadius(r RectF) float32 { return min32(r.W, r.H) * 0.14 }
+func gRadius(r RectF) float32 { return min32(r.W, r.H) * 0.115 }
 
 // glyphs: ícono de línea equivalente a cada emoji. Si un nombre no está, se
 // usa la imagen de siempre.
@@ -389,7 +389,7 @@ func gPastel(col uint32) uint32 {
 
 // gPreviewCard: vista previa del botón en el editor, igual que en el panel.
 func gPreviewCard(c *Canvas, r RectF, img *Image, label, sub string, col uint32) {
-	c.RoundRect(r.X, r.Y, r.W, r.H, min32(r.W, r.H)*0.14, gSurface)
+	c.RoundRect(r.X, r.Y, r.W, r.H, min32(r.W, r.H)*0.115, gSurface)
 	base := min32(r.W, r.H)
 	p := base * 0.11
 	gChip(c, img, r.X+p, r.Y+p, base*0.3, col)
@@ -425,11 +425,11 @@ func gOptionTile(c *Canvas, r RectF, s float32, img *Image, label string, col ui
 // app sobre gris si no hay glifo).
 func gChip(c *Canvas, img *Image, x, y, chip float32, col uint32) {
 	if _, ok := glyphOf(img); ok {
-		c.RoundRect(x, y, chip, chip, chip*0.32, gPastel(col))
+		c.RoundRect(x, y, chip, chip, chip*0.27, gPastel(col))
 		is := chip * 0.5
 		gIcon(c, img, 0, x+(chip-is)/2, y+(chip-is)/2, is, gInk)
 	} else if img != nil {
-		c.RoundRect(x, y, chip, chip, chip*0.32, gRaised)
+		c.RoundRect(x, y, chip, chip, chip*0.27, gRaised)
 		is := chip * 0.66
 		c.drawImageHQ(img, x+(chip-is)/2, y+(chip-is)/2, is, is)
 	}
@@ -465,12 +465,12 @@ func gSlot(c *Canvas, bp, s int, img *Image, caption string, col uint32) {
 	chip := base * 0.27
 	tint := gPastel(col)
 	if _, ok := glyphOf(img); ok {
-		c.RoundRect(r.X+p, r.Y+p, chip, chip, chip*0.32, tint)
+		c.RoundRect(r.X+p, r.Y+p, chip, chip, chip*0.27, tint)
 		is := chip * 0.5
 		ic := uint32(gInk)
 		gIcon(c, img, 0, r.X+p+(chip-is)/2, r.Y+p+(chip-is)/2, is, ic)
 	} else if img != nil {
-		c.RoundRect(r.X+p, r.Y+p, chip, chip, chip*0.32, gRaised)
+		c.RoundRect(r.X+p, r.Y+p, chip, chip, chip*0.27, gRaised)
 		is := chip * 0.66
 		c.drawImageHQ(img, r.X+p+(chip-is)/2, r.Y+p+(chip-is)/2, is, is)
 	}

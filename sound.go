@@ -13,10 +13,10 @@ import (
 
 var (
 	pPlaySoundW = syscall.NewLazyDLL("winmm.dll").NewProc("PlaySoundW")
-	// toque: "cristal", brillante y corto
-	clickWav = tapSound{clickHz: 5200, clickQ: 2.2, clickTau: 0.0011, clickAmt: 0.26,
-		f0: 1250, f1: 820, pitchTau: 0.003, bodyTau: 0.011,
-		partial: 2.41, partialTau: 0.004, partialAmt: 0.25, dur: 0.07, gain: 0.26, drive: 1.3}.render()
+	// toque: golpecito grave y rápido (~30 ms), casi sin chasquido
+	clickWav = tapSound{clickHz: 2200, clickQ: 1.0, clickTau: 0.0006, clickAmt: 0.06,
+		f0: 380, f1: 260, pitchTau: 0.0025, bodyTau: 0.0055,
+		partial: 1.5, partialTau: 0.003, partialAmt: 0.08, dur: 0.03, gain: 0.32, drive: 1.1}.render()
 	// cambio de página: más grave y largo, para que se distinga del toque
 	pageWav = tapSound{clickHz: 2200, clickQ: 1.0, clickTau: 0.002, clickAmt: 0.14,
 		f0: 300, f1: 150, pitchTau: 0.007, bodyTau: 0.024,

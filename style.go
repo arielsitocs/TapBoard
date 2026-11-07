@@ -30,7 +30,7 @@ func glassCard(c *Canvas, x, y, w, h, rad float32, col uint32) {
 // flatCard: tarjeta plana (estilo minimalista), en caché.
 func flatCard(c *Canvas, x, y, w, h, rad float32, col uint32) {
 	if isGrafito() {
-		c.RoundRect(x, y, w, h, min32(w, h)*0.14, gSurface)
+		c.RoundRect(x, y, w, h, min32(w, h)*0.115, gSurface)
 		return
 	}
 	iw, ih := ri(w), ri(h)
