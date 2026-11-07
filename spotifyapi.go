@@ -39,6 +39,7 @@ var (
 	spAccess     string
 	spAccessExp  time.Time
 	spConnecting bool
+	spAuthURL    string // página de inicio de sesión abierta (para volver a abrirla)
 	spUser       string // nombre visible de la cuenta conectada
 	spLists      []Playlist
 	spFetched    time.Time
@@ -120,7 +121,13 @@ func connectSpotify() {
 	}
 	spMu.Lock()
 	if spConnecting {
+		// ya está esperando: volver a abrir la página por si quedó escondida
+		u := spAuthURL
 		spMu.Unlock()
+		if u != "" {
+			pShellExecuteW.Call(0, wstrPtr("open"), wstrPtr(u), 0, 0, SW_SHOWNORMAL)
+			toast("Acepta en el navegador para conectar Spotify")
+		}
 		return
 	}
 	spConnecting = true
@@ -172,6 +179,9 @@ func connectSpotify() {
 		"code_challenge_method": {"S256"},
 		"code_challenge":        {challenge},
 	}.Encode()
+	spMu.Lock()
+	spAuthURL = auth
+	spMu.Unlock()
 	pShellExecuteW.Call(0, wstrPtr("open"), wstrPtr(auth), 0, 0, SW_SHOWNORMAL)
 	toast("Acepta en el navegador para conectar Spotify")
 
@@ -181,8 +191,9 @@ func connectSpotify() {
 			srv.Shutdown(ctx)
 			cancel()
 			spMu.Lock()
-			spConnecting = false
+			spConnecting, spAuthURL = false, ""
 			spMu.Unlock()
+			spCh <- invalidateAll // la configuración deja de decir "Esperando…"
 		}()
 		var code string
 		select {

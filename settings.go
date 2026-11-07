@@ -636,8 +636,19 @@ func layoutSettings(c *Canvas, w, s float32) float32 {
 			acct = append(acct, sRow{st, "Tus playlists aparecen solas en la tarjeta de música", 64,
 				buttonCtl([]string{"Desconectar"}, []uint32{0xFF4A2C30}, []func(){func() { disconnectSpotify(); invalidateAll() }})})
 		} else {
-			acct = append(acct, sRow{"Conectar mi cuenta", "Se abre el navegador para aceptar", 64,
-				buttonCtl([]string{"Conectar"}, []uint32{sColAccent}, []func(){func() { connectSpotify(); invalidateAll() }})})
+			// la fila dice qué falta o en qué va la conexión
+			sub, btn := "Se abre el navegador para aceptar", uint32(sColAccent)
+			spMu.Lock()
+			waiting := spConnecting
+			spMu.Unlock()
+			switch {
+			case strings.TrimSpace(cfg.SpotifyClientID) == "":
+				sub, btn = "Primero pega el Client ID de tu app (arriba)", 0xFF34373C
+			case waiting:
+				sub = "Esperando que aceptes en el navegador…"
+			}
+			acct = append(acct, sRow{"Conectar mi cuenta", sub, 64,
+				buttonCtl([]string{"Conectar"}, []uint32{btn}, []func(){func() { connectSpotify(); invalidateAll() }})})
 		}
 		L.card(acct)
 

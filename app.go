@@ -366,12 +366,14 @@ func paint(c *Canvas) {
 	c.ResetTransform()
 	paintReorderGhost(c)
 	paintDots(c)
-	paintToast(c)
 	paintHistory(c)
 	paintPlaylists(c)
 	paintIdle(c)
 	paintSettingsPanel(c)
 	paintPicker(c)
+	if idleAnim < 0.5 {
+		paintToast(c) // encima de la configuración y las listas, para que siempre se vea
+	}
 	paintNotif(c)
 	paintWhatsNew(c)
 }
