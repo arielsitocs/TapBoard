@@ -458,6 +458,11 @@ func volTrack() (x0, x1, y float32) {
 	if mediaShowing() {
 		// franja propia abajo: [parlante] ——barra—— [36 %]
 		sb := volStrip()
+		if isGrafito() {
+			// alineada con la barra de la canción, que tiene los tiempos a los lados
+			x0, x1, _, _, _ := gProgGeom(r)
+			return x0, x1, sb.Y + sb.H/2
+		}
 		return sb.X + sb.H*1.15, sb.X + sb.W - sb.H*1.9, sb.Y + sb.H/2
 	}
 	return r.X + m, r.X + r.W - m, r.Y + r.H*0.64
@@ -506,12 +511,15 @@ func drawVolume(c *Canvas) {
 	g := tiles[tGear]
 	if mediaShowing() {
 		sb := volStrip()
-		ps := sb.H * 0.36
 		if isGrafito() {
-			ps = sb.H * 0.44
+			// el % va donde está el tiempo total, a la derecha
+			_, x1, _, _, ts := gProgGeom(r)
+			c.Text(pct, semiFont, ts*1.08, semiStyle, gText,
+				RectF{x1 + ts*0.4, sb.Y, r.X + r.W - r.H*0.09 - x1 - ts*0.4, sb.H}, AlignFar, AlignCenter)
+		} else {
+			c.Text(pct, semiFont, sb.H*0.36, semiStyle, colWhite,
+				RectF{sb.X + sb.W - sb.H*1.75, sb.Y, sb.H * 1.5, sb.H}, AlignFar, AlignCenter)
 		}
-		c.Text(pct, semiFont, ps, semiStyle, colWhite,
-			RectF{sb.X + sb.W - sb.H*1.75, sb.Y, sb.H * 1.5, sb.H}, AlignFar, AlignCenter)
 	} else {
 		c.Text(pct, semiFont, fs*1.08, semiStyle, colWhite,
 			RectF{r.X + r.W*0.4, r.Y + m*0.55, g.X - (r.X + r.W*0.4) - m*0.15, fs * 1.7}, AlignFar, AlignCenter)
@@ -525,7 +533,7 @@ func drawVolume(c *Canvas) {
 		if pressed == tGear {
 			bg = lighten(gRaised, 0.08)
 		}
-		c.RoundRect(g.X, g.Y, g.W, g.H, g.W*0.25, bg)
+		c.RoundRect(g.X, g.Y, g.W, g.H, g.W*0.18, bg)
 		gc = 0xFFB5BAC4
 		if pressed == tGear {
 			gc = gText
@@ -540,7 +548,7 @@ func drawVolume(c *Canvas) {
 	if mediaShowing() {
 		th = r.H * 0.045 // más discreta cuando hay música
 		if isGrafito() {
-			th = r.H * 0.09
+			th = r.H * 0.058 // igual que la barra de la canción
 		}
 	}
 	if !mediaShowing() {
@@ -556,6 +564,9 @@ func drawVolume(c *Canvas) {
 	}
 	if isGrafito() {
 		fillA, fillB = gAccent, gAccent
+		if mediaShowing() {
+			fillA, fillB = gAlbumColor(), gAlbumColor() // el volumen toma el color del disco
+		}
 	}
 	if aud.Muted {
 		fillA, fillB = colDim, colDim
@@ -569,13 +580,13 @@ func drawVolume(c *Canvas) {
 		kr = r.H * 0.075
 	}
 	if isGrafito() && mediaShowing() {
-		kr = r.H * 0.07
+		kr = r.H * 0.062
 	}
 	if pressed == tVolume {
 		kr *= 1.15
 		halo := uint32(0x332196F3)
 		if isGrafito() {
-			halo = 0x33A9B4FF
+			halo = 0x33000000 | gAlbumColor()&0xFFFFFF
 		}
 		c.Circle(fx, y, kr*1.7, halo) // halo al arrastrar
 	}
@@ -1344,11 +1355,25 @@ func showMenu() {
 	m, _, _ := pCreatePopupMenu.Call()
 	styleMenu(m)
 	menuAppend(m, MF_STRING|0x0003, 0, "TapBoard v"+appVersion) // deshabilitado
-	sp := "Spotify: " + spotifyLastTitle
-	if r := []rune(sp); len(r) > 60 {
-		sp = string(r[:59]) + "…"
+	if isGrafito() {
+		// lo que suena (título · artista), solo si hay algo
+		if mediaShowing() {
+			np := sinEmojis(media.Title)
+			if media.Artist != "" {
+				np += " · " + sinEmojis(media.Artist)
+			}
+			if r := []rune(np); len(r) > 48 {
+				np = string(r[:47]) + "…"
+			}
+			menuAppendGlyph(m, MF_STRING|0x0003, 0, np, glyphs["musical_note"])
+		}
+	} else {
+		sp := "Spotify: " + spotifyLastTitle
+		if r := []rune(sp); len(r) > 60 {
+			sp = string(r[:59]) + "…"
+		}
+		menuAppend(m, MF_STRING|0x0003, 0, sp)
 	}
-	menuAppend(m, MF_STRING|0x0003, 0, sp)
 	menuAppend(m, MF_SEPARATOR, 0, "")
 	var devs []AudioDevice
 	if !demo {
@@ -1603,6 +1628,9 @@ func wndProc(h, msg, wparam, lparam uintptr) uintptr {
 	case WM_APP_TRAY:
 		onTrayMessage(lparam)
 		return 0
+	case WM_APP_DEMOMENU:
+		showMenu() // solo modo demo, para capturas
+		return 0
 	case WM_DESTROY:
 		pPostQuitMessage.Call(0)
 		return 0
@@ -1757,6 +1785,8 @@ func main() {
 			openHistory()
 		case "picker":
 			openPicker(0, 1)
+		case "menu":
+			pPostMessageW.Call(hwnd, WM_APP_DEMOMENU, 0, 0)
 		case "hotkey":
 			openPicker(0, 1)
 			edDraft = BotonP2{Tipo: "hotkey", Keys: "Ctrl+Shift+M", Nombre: "Mute Discord"}

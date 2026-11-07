@@ -30,7 +30,7 @@ func glassCard(c *Canvas, x, y, w, h, rad float32, col uint32) {
 // flatCard: tarjeta plana (estilo minimalista), en caché.
 func flatCard(c *Canvas, x, y, w, h, rad float32, col uint32) {
 	if isGrafito() {
-		c.RoundRect(x, y, w, h, min32(w, h)*0.115, gSurface)
+		c.RoundRect(x, y, w, h, min32(w, h)*0.075, gSurface)
 		return
 	}
 	iw, ih := ri(w), ri(h)
@@ -303,6 +303,10 @@ func volCardBG(c *Canvas, r RectF) {
 		rr := RectF{x, y, float32(iw), float32(ih)}
 		if grafito {
 			cc.RoundRect(x, y, float32(iw), float32(ih), rad, gSurface)
+			if show && mediaThumb != nil && mediaAccent != colBlue {
+				// tinte del color del disco, que se desvanece hacia la derecha
+				cc.RoundRectGradH(x, y, float32(iw), float32(ih), rad, 0x2A000000|mediaAccent&0xFFFFFF, mediaAccent&0xFFFFFF)
+			}
 		} else if isGlass() {
 			frost(cc, x, y, float32(iw), float32(ih), rad)
 		} else {
@@ -323,8 +327,11 @@ func volCardBG(c *Canvas, r RectF) {
 			th := rr.H * 0.045
 			x0, x1, ty := sb.X+sb.H*1.15, sb.X+sb.W-sb.H*1.9, sb.Y+sb.H/2
 			if grafito {
-				gIcon(cc, icons[ic], 0, sb.X+sb.H*0.3, sb.Y+(sb.H-is)/2, is, 0xFFB5BAC4)
-				cc.RoundRect(x0, ty-th, x1-x0, th*2, th, gTrack)
+				// misma altura y mismos extremos que la barra de la canción
+				gx0, gx1, _, gth, _ := gProgGeom(rr)
+				is = sb.H * 0.6
+				gIcon(cc, icons[ic], 0, sb.X+sb.H*0.32, sb.Y+(sb.H-is)/2, is, 0xFFB5BAC4)
+				cc.RoundRect(gx0, ty-gth/2, gx1-gx0, gth, gth/2, gTrack)
 			} else {
 				cc.RoundRect(sb.X, sb.Y, sb.W, sb.H, sb.H/2, 0x14FFFFFF)
 				cc.drawImageHQ(icons[ic], sb.X+sb.H*0.32, sb.Y+(sb.H-is)/2, is, is)

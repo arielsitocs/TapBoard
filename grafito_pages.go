@@ -11,7 +11,7 @@ import (
 	"unsafe"
 )
 
-const gWarn = 0xFFFFB86B
+const gWarn = 0xFFFFAA4D
 
 // gHeader: título de página arriba a la izquierda y un dato tenue a la derecha.
 // Devuelve dónde empieza el contenido.
@@ -41,14 +41,36 @@ type gStat struct {
 	hist        []float64
 	histMax     float64
 	barFrac     float64 // < 0 = sin barra horizontal
+	col         uint32  // color propio de la métrica
+	gauge       float64 // 0-100 = medidor circular junto al valor; < 0 = sin medidor
 }
 
+// Colores de cada métrica: tonos claros y vivos, distintos entre sí pero con
+// la misma luminosidad, para que el conjunto se vea parejo.
+const (
+	gColCPU  = 0xFF8FA6FF // azul lavanda
+	gColGPU  = 0xFF5FE3A1 // menta
+	gColRAM  = 0xFFC39BFF // violeta
+	gColDisk = 0xFFFFC266 // ámbar
+	gColNet  = 0xFF5CCFF0 // celeste
+	gColSys  = 0xFFB9BFCC // gris claro
+)
+
 func gStatCard(c *Canvas, r RectF, st gStat) {
-	c.RoundRect(r.X, r.Y, r.W, r.H, gRadius(r), gSurface)
+	col := st.col
+	if col == 0 {
+		col = gAccent
+	}
+	if st.valueCol == gWarn {
+		col = gWarn // carga alta: toda la tarjeta avisa en naranja
+	}
+	// fondo con un tinte muy leve del color de la métrica arriba
+	c.RoundRectGrad(r.X, r.Y, r.W, r.H, gRadius(r), mix(gSurface, col, 0.10), gSurface)
 	p := r.H * 0.1
 	ns := r.H * 0.062
-	// encabezado: NOMBRE · dato a la derecha
-	c.Text(upper(st.name), semiFont, ns, semiStyle, gMuted, RectF{r.X + p, r.Y + p, r.W * 0.5, ns * 1.5}, AlignNear, AlignCenter)
+	// encabezado: punto de color + NOMBRE · dato a la derecha
+	c.Circle(r.X+p+ns*0.32, r.Y+p+ns*0.75, ns*0.32, col)
+	c.Text(upper(st.name), semiFont, ns, semiStyle, mix(col, gText, 0.35), RectF{r.X + p + ns*0.95, r.Y + p, r.W * 0.5, ns * 1.5}, AlignNear, AlignCenter)
 	rc := st.rightCol
 	if rc == 0 {
 		rc = gMuted
@@ -67,27 +89,36 @@ func gStatCard(c *Canvas, r RectF, st gStat) {
 		us := vs * 0.4
 		c.Text(st.unit, semiFont, us, semiStyle, gMuted, RectF{r.X + p + vw + vs*0.18, vy + vs*0.36, r.W - 2*p - vw, vs * 0.85}, AlignNear, AlignCenter)
 	}
+	lineW := r.W - 2*p
+	// medidor circular a la derecha del valor
+	if st.gauge >= 0 {
+		gr := r.H * 0.125
+		cx, cy := r.X+r.W-p-gr, vy+vs*0.68
+		w := gr * 0.26
+		c.Arc(cx, cy, gr, 0, 360, w, gTrack)
+		if f := math.Min(st.gauge, 100) / 100; f > 0.005 {
+			c.Arc(cx, cy, gr, -90, float32(360*f), w, col)
+		}
+		lineW -= gr*2 + p*0.5
+	}
 	ly := vy + vs*1.3
 	if st.line != "" {
 		ls := r.H * 0.058
-		c.Text(st.line, textFont, ls, FontStyleRegular, gMuted, RectF{r.X + p, ly, r.W - 2*p, ls * 1.5}, AlignNear, AlignCenter)
+		// hasta dos líneas: junto al medidor el texto largo (GPU · VRAM) no se corta
+		c.TextWrap(st.line, textFont, ls, FontStyleRegular, gMuted, RectF{r.X + p, ly, lineW, ls * 2.7}, AlignNear, AlignNear)
 	}
-	// abajo: barras del historial (la última con el acento) o barra de uso
-	gh := r.H * 0.2
-	gy := r.Y + r.H - p - gh
+	// abajo: gráfico del último minuto, o barra de uso (disco)
 	if st.barFrac >= 0 {
-		th := r.H * 0.04
+		th := r.H * 0.055
 		y := r.Y + r.H - p - th
 		c.RoundRect(r.X+p, y, r.W-2*p, th, th/2, gTrack)
 		if st.barFrac > 0 {
-			c.RoundRect(r.X+p, y, (r.W-2*p)*float32(math.Min(st.barFrac, 1)), th, th/2, gAccent)
+			c.RoundRect(r.X+p, y, (r.W-2*p)*float32(math.Min(st.barFrac, 1)), th, th/2, col)
 		}
+		ps := r.H * 0.052
+		c.Text(fmt.Sprintf("%.0f %% usado", st.barFrac*100), textFont, ps, FontStyleRegular, gMuted,
+			RectF{r.X + p, y - ps*1.8, r.W - 2*p, ps * 1.5}, AlignFar, AlignCenter)
 		return
-	}
-	_, _ = gh, gy
-	col := uint32(gAccent)
-	if st.valueCol == gWarn {
-		col = gWarn
 	}
 	gAreaChart(c, r, st.hist, st.histMax, col)
 }
@@ -191,7 +222,7 @@ func gPaintMonitor(c *Canvas, s PCStats) {
 	top := gHeader(c, "Monitor del PC", "Se actualiza cada segundo")
 
 	// CPU: uso grande, temperatura arriba a la derecha
-	cpu := gStat{name: "CPU", value: fmt.Sprintf("%.0f", s.CPU), unit: "%", hist: s.HistCPU, histMax: 100, barFrac: -1}
+	cpu := gStat{name: "CPU", value: fmt.Sprintf("%.0f", s.CPU), unit: "%", hist: s.HistCPU, histMax: 100, barFrac: -1, col: gColCPU, gauge: s.CPU}
 	if s.CPUTemp >= 0 {
 		cpu.right, cpu.rightCol = fmt.Sprintf("%.0f °C", s.CPUTemp), tempCol(s.CPUTemp)
 	}
@@ -205,7 +236,7 @@ func gPaintMonitor(c *Canvas, s PCStats) {
 	gStatCard(c, gMonRect(0, top), cpu)
 
 	// GPU
-	gpu := gStat{name: "GPU", value: fmt.Sprintf("%.0f", s.GPU), unit: "%", hist: s.HistGPU, histMax: 100, barFrac: -1}
+	gpu := gStat{name: "GPU", value: fmt.Sprintf("%.0f", s.GPU), unit: "%", hist: s.HistGPU, histMax: 100, barFrac: -1, col: gColGPU, gauge: s.GPU}
 	if s.GPU < 0 {
 		gpu.value, gpu.unit = "—", ""
 	}
@@ -230,7 +261,7 @@ func gPaintMonitor(c *Canvas, s PCStats) {
 		ramPct = s.RAMUsed / s.RAMTotal * 100
 	}
 	gStatCard(c, gMonRect(2, top), gStat{name: "RAM", right: fmt.Sprintf("%s / %.0f GB", fmtRAM(s.RAMUsed), math.Round(s.RAMTotal)),
-		value: fmt.Sprintf("%.0f", ramPct), unit: "%", hist: s.HistRAM, histMax: 100, barFrac: -1})
+		value: fmt.Sprintf("%.0f", ramPct), unit: "%", hist: s.HistRAM, histMax: 100, barFrac: -1, col: gColRAM, gauge: ramPct})
 
 	// Disco
 	diskFrac := 0.0
@@ -239,12 +270,12 @@ func gPaintMonitor(c *Canvas, s PCStats) {
 	}
 	dv, du := splitUnit(fmtGB(s.DiskFree))
 	gStatCard(c, gMonRect(3, top), gStat{name: "Disco C:", right: "de " + fmtGB(s.DiskTotal), value: dv, unit: du + " libres",
-		line: fmt.Sprintf("Actividad %.0f %%", s.DiskAct), barFrac: diskFrac})
+		line: fmt.Sprintf("Actividad %.0f %%", s.DiskAct), barFrac: diskFrac, col: gColDisk, gauge: -1})
 
 	// Red
 	nv, nu := splitUnit(fmtBytesRate(s.NetDown))
 	gStatCard(c, gMonRect(4, top), gStat{name: "Red", right: "↑ " + fmtBytesRate(s.NetUp), value: "↓ " + nv, unit: nu,
-		hist: s.HistNet, barFrac: -1})
+		hist: s.HistNet, barFrac: -1, col: gColNet, gauge: -1})
 
 	// Sistema
 	h := int(s.Uptime.Hours())
@@ -257,7 +288,7 @@ func gPaintMonitor(c *Canvas, s PCStats) {
 	dias := []string{"domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"}
 	meses := []string{"enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"}
 	gStatCard(c, gMonRect(5, top), gStat{name: "Sistema", right: fmt.Sprintf("%s %d de %s", dias[now.Weekday()], now.Day(), meses[now.Month()-1]),
-		value: now.Format("15:04"), line: "Encendido hace " + up, barFrac: -1})
+		value: now.Format("15:04"), line: "Encendido hace " + up, barFrac: -1, col: gColSys, gauge: -1})
 }
 
 // ---------------------------------------------------------------- mezclador
@@ -330,11 +361,11 @@ func gPaintMixer(c *Canvas) {
 		if mixDrag == i {
 			bg = lighten(bg, 0.04)
 		}
-		c.RoundRect(r.X, r.Y, r.W, r.H, min32(r.W, r.H)*0.115, bg)
+		c.RoundRect(r.X, r.Y, r.W, r.H, min32(r.W, r.H)*0.075, bg)
 		// ícono de la app
 		cx := r.X + (r.W-chip)/2
 		cy := r.Y + p
-		c.RoundRect(cx, cy, chip, chip, chip*0.27, gRaised)
+		c.RoundRect(cx, cy, chip, chip, chip*0.18, gRaised)
 		if a.system {
 			is := chip * 0.5
 			gIcon(c, nil, glyphs["speaker_high_volume"], cx+(chip-is)/2, cy+(chip-is)/2, is, gText)

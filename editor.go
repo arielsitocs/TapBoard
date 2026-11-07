@@ -502,11 +502,7 @@ func paintTapLeft(c *Canvas, lx, y, lw, s float32, btn func(RectF, string, uint3
 			c.Text("Auto", semiFont, 10*s, semiStyle, sColText, r, AlignCenter, AlignCenter)
 		}
 		if hx == edDraft.Color {
-			ring := uint32(0xFFFFFFFF)
-			if isGrafito() && hx != "" {
-				ring = gInk // anillo oscuro: se ve sobre los tonos claros
-			}
-			c.Arc(x+sz/2, yy+sz/2, sz/2-2*s, 0, 360, 3*s, ring)
+			c.Arc(x+sz/2, yy+sz/2, sz/2-2*s, 0, 360, 3*s, 0xFFFFFFFF)
 		}
 	}
 	y += 2*(sz+8*s) + 4*s

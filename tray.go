@@ -20,7 +20,8 @@ var (
 )
 
 const (
-	WM_APP_TRAY = WM_APP + 20
+	WM_APP_TRAY     = WM_APP + 20
+	WM_APP_DEMOMENU = WM_APP + 21
 
 	nimAdd    = 0
 	nimModify = 1

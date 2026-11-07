@@ -15,20 +15,20 @@ const (
 	// Grises más claros que en el prototipo: en los mini monitores los tonos
 	// muy cercanos al negro se ven negros del todo.
 	gBG      = 0xFF0B0C0F
-	gSurface = 0xFF23262D
-	gRaised  = 0xFF30343C
-	gTrack   = 0xFF3A3F48
+	gSurface = 0xFF21252F
+	gRaised  = 0xFF2D3240
+	gTrack   = 0xFF383E4C
 	gText    = 0xFFEDEEF1
 	gMuted   = 0xFF8B909A
-	gAccent  = 0xFFA9B4FF
+	gAccent  = 0xFF9FAEFF
 	gInk     = 0xFF0B0C0F // texto sobre el acento
-	gRed     = 0xFFFF8A8A
-	gGreen   = 0xFF5BD68A
+	gRed     = 0xFFFF7B7B
+	gGreen   = 0xFF4FE38E
 )
 
 func isGrafito() bool { return cfg.Theme == "grafito" }
 
-func gRadius(r RectF) float32 { return min32(r.W, r.H) * 0.115 }
+func gRadius(r RectF) float32 { return min32(r.W, r.H) * 0.075 }
 
 // glyphs: ícono de línea equivalente a cada emoji. Si un nombre no está, se
 // usa la imagen de siempre.
@@ -255,16 +255,35 @@ func gMediaGeom(r RectF) (p, art, ax, ay, tx float32) {
 // gVolStrip: franja del volumen, abajo de la columna de texto.
 func gVolStrip(r RectF) RectF {
 	p, _, _, _, tx := gMediaGeom(r)
-	h := r.H * 0.2
+	h := r.H * 0.18
 	x := tx - h*0.32
 	return RectF{x, r.Y + r.H - p - h, r.X + r.W - p*0.6 - x, h}
 }
 
-func gProgressY(r RectF) float32 { return r.Y + r.H*0.565 }
+func gProgressY(r RectF) float32 { return r.Y + r.H*0.615 }
+
+// gProgGeom: barra de la canción con los tiempos a cada lado
+// (0:35 ━━━━━━ 3:56). Devuelve los extremos de la barra, su altura y la
+// letra de los tiempos.
+func gProgGeom(r RectF) (x0, x1, y, th, ts float32) {
+	p, _, _, _, tx := gMediaGeom(r)
+	ts = r.H * 0.08
+	tw := ts * 3.5 // cabe "3:56" y "100 %"
+	return tx + tw, r.X + r.W - p - tw, gProgressY(r), r.H * 0.058, ts
+}
+
+// gAlbumColor: color principal de la carátula, aclarado para leerse sobre el
+// grafito. Sin carátula (o sin color claro) se usa el acento de siempre.
+func gAlbumColor() uint32 {
+	if mediaAccent == colBlue {
+		return gAccent
+	}
+	return mix(mediaAccent, 0xFFFFFFFF, 0.28)
+}
 
 func gMediaStatic(c *Canvas, r RectF) {
-	_, art, ax, ay, tx := gMediaGeom(r)
-	rad := art * 0.11
+	_, art, ax, ay, _ := gMediaGeom(r)
+	rad := art * 0.09
 	if mediaThumb != nil {
 		c.RoundRect(ax, ay, art, art, rad, gRaised) // por si la carátula es transparente
 		c.ClipRoundRect(ax, ay, art, art, rad)
@@ -276,8 +295,8 @@ func gMediaStatic(c *Canvas, r RectF) {
 		gIcon(c, nil, glyphs["musical_note"], ax+(art-is)/2, ay+(art-is)/2, is, gMuted)
 	}
 	if media.End > 0 {
-		th := r.H * 0.035
-		c.RoundRect(tx, gProgressY(r)-th/2, r.X+r.W-r.H*0.09-tx, th, th/2, gTrack)
+		x0, x1, y, th, _ := gProgGeom(r)
+		c.RoundRect(x0, y-th/2, x1-x0, th, th/2, gTrack)
 	}
 }
 
@@ -291,16 +310,23 @@ func gMediaHeader(c *Canvas, r RectF, rightLimit float32) {
 	if app == "" {
 		app = "Música"
 	}
-	state, titleCol := " · Sonando", uint32(gText)
+	// la etiqueta toma el color del disco; en pausa se apaga y lleva el ícono
+	label, labelCol := strings.ToUpper(app+" · Sonando"), gAlbumColor()
+	ls := r.H * 0.072
+	lx := tx
 	if media.Status != mediaPlaying {
-		state, titleCol = " · En pausa", gMuted
+		label, labelCol = strings.ToUpper(app+" · En pausa"), uint32(gMuted)
+		bw, bh := ls*0.26, ls*0.95
+		by := ay + ls*0.55 - bh/2
+		c.RoundRect(lx, by, bw, bh, bw*0.3, labelCol)
+		c.RoundRect(lx+bw*1.9, by, bw, bh, bw*0.3, labelCol)
+		lx += bw*2.9 + ls*0.35
 	}
-	ls := r.H * 0.076
-	c.Text(strings.ToUpper(app+state), semiFont, ls, semiStyle, gAccent, RectF{tx, ay - ls*0.15, tw, ls * 1.4}, AlignNear, AlignCenter)
+	c.Text(label, semiFont, ls, semiStyle, labelCol, RectF{lx, ay - ls*0.15, rightLimit - lx, ls * 1.4}, AlignNear, AlignCenter)
 	fs := r.H * 0.135
-	ty := ay + ls*1.3
-	c.Text(sinEmojis(media.Title), semiFont, fs, semiStyle, titleCol, RectF{tx, ty, tw, fs * 1.35}, AlignNear, AlignCenter)
-	as := r.H * 0.095
+	ty := ay + ls*1.35
+	c.Text(sinEmojis(media.Title), semiFont, fs, semiStyle, gText, RectF{tx, ty, tw, fs * 1.35}, AlignNear, AlignCenter)
+	as := r.H * 0.092
 	c.Text(sinEmojis(media.Artist), textFont, as, FontStyleRegular, gMuted, RectF{tx, ty + fs*1.25, tw, as * 1.4}, AlignNear, AlignCenter)
 
 	if media.End <= 0 {
@@ -314,27 +340,25 @@ func gMediaHeader(c *Canvas, r RectF, rightLimit float32) {
 		pos = media.End
 	}
 	frac := float32(pos) / float32(media.End)
-	px0, px1 := tx, r.X+r.W-p
-	py := gProgressY(r)
-	th := r.H * 0.035
+	px0, px1, py, th, ts := gProgGeom(r)
 	seekBarX0, seekBarX1 = px0, px1
-	seekBar = RectF{px0 - as*0.5, py - as*1.0, px1 - px0 + as, as * 2.0}
+	seekBar = RectF{px0 - ts, py - as*1.0, px1 - px0 + 2*ts, as * 2.0}
 	if seeking {
 		frac = seekFrac
 		pos = int64(float64(seekFrac) * float64(media.End))
-		th *= 1.8
+		th *= 1.6
 		c.RoundRect(px0, py-th/2, px1-px0, th, th/2, gTrack)
 	}
 	if frac > 0 {
 		c.RoundRect(px0, py-th/2, (px1-px0)*frac, th, th/2, gText)
 	}
 	if seeking {
-		c.Circle(px0+(px1-px0)*frac, py, th*1.4, gText)
+		c.Circle(px0+(px1-px0)*frac, py, th*1.5, gText)
 	}
-	ts := r.H * 0.08
-	tr := RectF{px0, py + th*0.7, px1 - px0, ts * 1.45}
-	c.Text(fmtTime(pos), textFont, ts, FontStyleRegular, gMuted, tr, AlignNear, AlignCenter)
-	c.Text(fmtTime(media.End), textFont, ts, FontStyleRegular, gMuted, tr, AlignFar, AlignCenter)
+	// tiempos a cada lado de la barra
+	c.Text(fmtTime(pos), textFont, ts, FontStyleRegular, 0xFFA3A9B6, RectF{tx, py - ts, px0 - tx - ts*0.4, ts * 2}, AlignNear, AlignCenter)
+	c.Text(fmtTime(media.End), textFont, ts, FontStyleRegular, 0xFFA3A9B6, RectF{px1 + ts*0.4, py - ts, r.X + r.W - p - px1 - ts*0.4, ts * 2}, AlignFar, AlignCenter)
+	_ = p
 }
 
 // kindOf: qué hace un botón, en pocas palabras (línea tenue bajo el nombre).
@@ -368,7 +392,9 @@ func gDeviceName(n string) string {
 	return strings.TrimSpace(n)
 }
 
-// gPastel: color de botón llevado a un tono claro y vivo para la pastilla del ícono.
+// gPastel: color del botón llevado a un tono vivo e intenso para la pastilla
+// del ícono, que va en blanco encima (como los íconos de un celular). Los tonos
+// muy claros (ámbar, celeste) se oscurecen un poco para que el blanco se lea.
 func gPastel(col uint32) uint32 {
 	c := vivid(vivid(col))
 	r, g, b := float32((c>>16)&0xFF), float32((c>>8)&0xFF), float32(c&0xFF)
@@ -382,14 +408,20 @@ func gPastel(col uint32) uint32 {
 	if mx < 1 {
 		mx = 1
 	}
-	k := 235 / mx
-	c = 0xFF000000 | uint32(r*k)<<16 | uint32(g*k)<<8 | uint32(b*k)
-	return mix(c, 0xFFFFFFFF, 0.3)
+	k := 215 / mx
+	r, g, b = r*k, g*k, b*k
+	if l := 0.2126*r + 0.7152*g + 0.0722*b; l > 150 {
+		k = 150 / l
+		r, g, b = r*k, g*k, b*k
+	}
+	return 0xFF000000 | uint32(r)<<16 | uint32(g)<<8 | uint32(b)
 }
+
+const gChipInk = 0xFFFFFFFF // ícono sobre la pastilla de color
 
 // gPreviewCard: vista previa del botón en el editor, igual que en el panel.
 func gPreviewCard(c *Canvas, r RectF, img *Image, label, sub string, col uint32) {
-	c.RoundRect(r.X, r.Y, r.W, r.H, min32(r.W, r.H)*0.115, gSurface)
+	c.RoundRect(r.X, r.Y, r.W, r.H, min32(r.W, r.H)*0.075, gSurface)
 	base := min32(r.W, r.H)
 	p := base * 0.11
 	gChip(c, img, r.X+p, r.Y+p, base*0.3, col)
@@ -425,11 +457,11 @@ func gOptionTile(c *Canvas, r RectF, s float32, img *Image, label string, col ui
 // app sobre gris si no hay glifo).
 func gChip(c *Canvas, img *Image, x, y, chip float32, col uint32) {
 	if _, ok := glyphOf(img); ok {
-		c.RoundRect(x, y, chip, chip, chip*0.27, gPastel(col))
+		c.RoundRect(x, y, chip, chip, chip*0.18, gPastel(col))
 		is := chip * 0.5
-		gIcon(c, img, 0, x+(chip-is)/2, y+(chip-is)/2, is, gInk)
+		gIcon(c, img, 0, x+(chip-is)/2, y+(chip-is)/2, is, gChipInk)
 	} else if img != nil {
-		c.RoundRect(x, y, chip, chip, chip*0.27, gRaised)
+		c.RoundRect(x, y, chip, chip, chip*0.18, gRaised)
 		is := chip * 0.66
 		c.drawImageHQ(img, x+(chip-is)/2, y+(chip-is)/2, is, is)
 	}
@@ -465,12 +497,12 @@ func gSlot(c *Canvas, bp, s int, img *Image, caption string, col uint32) {
 	chip := base * 0.27
 	tint := gPastel(col)
 	if _, ok := glyphOf(img); ok {
-		c.RoundRect(r.X+p, r.Y+p, chip, chip, chip*0.27, tint)
+		c.RoundRect(r.X+p, r.Y+p, chip, chip, chip*0.18, tint)
 		is := chip * 0.5
-		ic := uint32(gInk)
+		ic := uint32(gChipInk)
 		gIcon(c, img, 0, r.X+p+(chip-is)/2, r.Y+p+(chip-is)/2, is, ic)
 	} else if img != nil {
-		c.RoundRect(r.X+p, r.Y+p, chip, chip, chip*0.27, gRaised)
+		c.RoundRect(r.X+p, r.Y+p, chip, chip, chip*0.18, gRaised)
 		is := chip * 0.66
 		c.drawImageHQ(img, r.X+p+(chip-is)/2, r.Y+p+(chip-is)/2, is, is)
 	}
