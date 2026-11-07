@@ -260,10 +260,8 @@ func drawSlot(c *Canvas, bp, s int) {
 		return
 	}
 	img, cap, col := slotVisual(bp, s)
-	if bp >= 0 {
-		// en las páginas de botones el texto siempre se ve
-	} else {
-		cap = "" // en la página 1, solo ícono (como antes)
+	if bp < 0 && !isGrafito() {
+		cap = "" // en la página 1, solo ícono (en Grafito todos llevan nombre)
 	}
 	if t := flashText(id); t != "" {
 		cap = t
@@ -273,6 +271,10 @@ func drawSlot(c *Canvas, bp, s int) {
 		} else {
 			cap = "Toca otra vez"
 		}
+	}
+	if isGrafito() {
+		gSlot(c, bp, s, img, cap, col)
+		return
 	}
 	if reorderID >= 0 && hitTest(lastPX, lastPY) == id {
 		col = lighten(col, 0.18)

@@ -60,6 +60,12 @@ jobs:
           CGO_ENABLED: "0"
         run: go build -trimpath -ldflags "-H windowsgui -s -w" -o TapBoard.exe .
 
+      # Huella del .exe: desde la 3.0.0 la app la compara antes de instalar
+      # una actualización (si falta, no se actualiza).
+      - name: Huella SHA-256
+        if: steps.v.outputs.exists == 'false'
+        run: sha256sum TapBoard.exe > TapBoard.exe.sha256 && cat TapBoard.exe.sha256
+
       - name: Publicar release
         if: steps.v.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
@@ -67,4 +73,6 @@ jobs:
           tag_name: v${{ steps.v.outputs.version }}
           name: TapBoard v${{ steps.v.outputs.version }}
           body_path: notes.md
-          files: TapBoard.exe
+          files: |
+            TapBoard.exe
+            TapBoard.exe.sha256

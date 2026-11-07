@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
-var themeKeys = []string{"glass", "dark", "oled", "graphite", "midnight"}
-var themeLabels = []string{"Vidrio", "Oscuro", "OLED", "Grafito", "Noche"}
+var themeKeys = []string{"grafito", "glass", "dark", "oled", "graphite", "midnight"}
+var themeLabels = []string{"Grafito", "Vidrio", "Oscuro", "OLED", "Gris", "Noche"}
 
 func isGlass() bool { return cfg.Theme == "glass" }
 
@@ -35,6 +35,8 @@ func themeBG() uint32 {
 		return 0xFF0B1220
 	case "glass":
 		return 0xFF0A0C12
+	case "grafito":
+		return gBG
 	}
 	return colBG
 }
@@ -124,6 +126,10 @@ func animIdle() bool {
 
 func paintIdle(c *Canvas) {
 	if idleAnim < 0.01 {
+		return
+	}
+	if isGrafito() {
+		gPaintIdle(c)
 		return
 	}
 	a := uint32(255 * math.Min(1, float64(idleAnim)))

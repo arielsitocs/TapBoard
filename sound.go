@@ -2,7 +2,7 @@
 
 package main
 
-// Sonido suave al tocar: un "tic" corto generado en memoria.
+// Sonidos al tocar y al cambiar de página, generados en memoria.
 
 import (
 	"encoding/binary"
@@ -13,78 +13,60 @@ import (
 
 var (
 	pPlaySoundW = syscall.NewLazyDLL("winmm.dll").NewProc("PlaySoundW")
-	clickWav    = makePop(1500, 320, 0.009, 0.050, 0.20, 0.25)
-	pageWav     = makePop(700, 220, 0.016, 0.070, 0.10, 0.05)
+	// toque: "cristal", brillante y corto
+	clickWav = tapSound{clickHz: 5200, clickQ: 2.2, clickTau: 0.0011, clickAmt: 0.26,
+		f0: 1250, f1: 820, pitchTau: 0.003, bodyTau: 0.011,
+		partial: 2.41, partialTau: 0.004, partialAmt: 0.25, dur: 0.07, gain: 0.26, drive: 1.3}.render()
+	// cambio de página: más grave y largo, para que se distinga del toque
+	pageWav = tapSound{clickHz: 2200, clickQ: 1.0, clickTau: 0.002, clickAmt: 0.14,
+		f0: 300, f1: 150, pitchTau: 0.007, bodyTau: 0.024,
+		partial: 2.0, partialTau: 0.008, partialAmt: 0.12, dur: 0.1, gain: 0.22, drive: 1.3}.render()
 )
 
-func makeClick(f1, f2, amp, dur float64) []byte {
-	const rate = 44100
-	n := int(rate * dur)
-	data := make([]byte, n*2)
-	seed := uint32(12345)
-	for i := 0; i < n; i++ {
-		t := float64(i) / rate
-		seed = seed*1664525 + 1013904223
-		noise := (float64(seed>>16)/32768 - 1) * math.Exp(-t/0.0008)
-		v := 0.55*math.Sin(2*math.Pi*f1*t)*math.Exp(-t/0.0035) +
-			0.45*math.Sin(2*math.Pi*f2*t)*math.Exp(-t/0.007) +
-			0.25*noise
-		// pequeño fundido de entrada para evitar un "pop"
-		if i < 20 {
-			v *= float64(i) / 20
-		}
-		binary.LittleEndian.PutUint16(data[i*2:], uint16(int16(v*amp*32767)))
-	}
-	h := make([]byte, 44)
-	copy(h[0:], "RIFF")
-	binary.LittleEndian.PutUint32(h[4:], uint32(36+len(data)))
-	copy(h[8:], "WAVEfmt ")
-	binary.LittleEndian.PutUint32(h[16:], 16)
-	binary.LittleEndian.PutUint16(h[20:], 1)
-	binary.LittleEndian.PutUint16(h[22:], 1)
-	binary.LittleEndian.PutUint32(h[24:], rate)
-	binary.LittleEndian.PutUint32(h[28:], rate*2)
-	binary.LittleEndian.PutUint16(h[32:], 2)
-	binary.LittleEndian.PutUint16(h[34:], 16)
-	copy(h[36:], "data")
-	binary.LittleEndian.PutUint32(h[40:], uint32(len(data)))
-	return append(h, data...)
+// tapSound: golpe corto generado en memoria. Un chasquido de ruido filtrado en
+// banda (el brillo), un cuerpo con un tono que baja de f0 a f1 (el peso) y un
+// parcial inarmónico que le da timbre de vidrio o madera.
+type tapSound struct {
+	clickHz, clickQ, clickTau, clickAmt float64 // chasquido inicial
+	f0, f1, pitchTau, bodyTau           float64 // cuerpo
+	partial, partialTau, partialAmt     float64 // parcial extra (multiplica f)
+	dur, gain, drive                    float64 // largo, volumen, saturación suave
 }
 
-// makePop: "tock" corto y redondo, como una tecla mecánica suave: un tono que
-// baja rápido de f0 a f1 (cuerpo) + un pequeño golpe de ruido al inicio (clic).
-func makePop(f0, f1, tau, dur, amp, noiseAmt float64) []byte {
+func (p tapSound) render() []byte {
 	const rate = 44100
-	n := int(rate * dur)
-	data := make([]byte, n*2)
-	seed := uint32(987654)
-	phase := 0.0
-	prevNoise := 0.0
+	n := int(rate * p.dur)
+	out := make([]byte, n*2)
+	// resonador de 2 polos para el ruido (pasa banda)
+	w := 2 * math.Pi * p.clickHz / rate
+	r := 1 - w/(2*p.clickQ)
+	a1, a2 := 2*r*math.Cos(w), -r*r
+	var y1, y2 float64
+	seed := uint32(24680)
+	ph, ph2 := 0.0, 0.0
+	fade := rate * 6 / 1000 // fundido final de 6 ms
 	for i := 0; i < n; i++ {
 		t := float64(i) / rate
-		f := f1 + (f0-f1)*math.Exp(-t/0.006)
-		phase += 2 * math.Pi * f / rate
-		env := math.Exp(-t / tau)
-		if i < 40 { // ataque de ~1 ms
-			env *= float64(i) / 40
-		}
-		body := math.Sin(phase) * env
-		// armónico suave para que suene más "lleno"
-		body += 0.25 * math.Sin(2*phase) * math.Exp(-t/(tau*0.6))
 		seed = seed*1664525 + 1013904223
 		nz := float64(seed>>16)/32768 - 1
-		hp := nz - prevNoise // ruido filtrado (agudo)
-		prevNoise = nz
-		click := hp * math.Exp(-t/0.0012) * noiseAmt
-		v := (body + click) * amp
-		if v > 1 {
-			v = 1
-		} else if v < -1 {
-			v = -1
+		y := nz*(1-r) + a1*y1 + a2*y2
+		y2, y1 = y1, y
+		click := y * math.Exp(-t/p.clickTau) * p.clickAmt * 6
+
+		f := p.f1 + (p.f0-p.f1)*math.Exp(-t/p.pitchTau)
+		ph += 2 * math.Pi * f / rate
+		ph2 += 2 * math.Pi * f * p.partial / rate
+		att := math.Min(1, t/0.0006) // ataque de 0,6 ms: sin "pop"
+		body := math.Sin(ph) * math.Exp(-t/p.bodyTau) * att
+		body += p.partialAmt * math.Sin(ph2) * math.Exp(-t/p.partialTau) * att
+
+		v := math.Tanh((body+click)*p.drive) / math.Tanh(p.drive) * p.gain
+		if j := n - i; j < fade {
+			v *= float64(j) / float64(fade)
 		}
-		binary.LittleEndian.PutUint16(data[i*2:], uint16(int16(v*32767)))
+		binary.LittleEndian.PutUint16(out[i*2:], uint16(int16(v*32767)))
 	}
-	return wavFile(rate, data)
+	return wavFile(rate, out)
 }
 
 func wavFile(rate int, data []byte) []byte {

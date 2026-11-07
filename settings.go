@@ -24,16 +24,32 @@ var (
 	pDwmSetWindowAttribute = dwmapi.NewProc("DwmSetWindowAttribute")
 )
 
-const (
-	sColBG     = 0xFF161616
-	sColCard   = 0xFF202124
-	sColLine   = 0xFF2C2D31
-	sColText   = 0xFFF2F2F2
-	sColSub    = 0xFF9AA0A8
-	sColOff    = 0xFF44474D
-	sColAccent = 0xFF2196F3
-	sColDanger = 0xFF8C2D3A
+// Colores de la configuración, el editor y el historial. Cambian con el tema
+// (ver applySettingsPalette).
+var (
+	sColBG     uint32 = 0xFF161616
+	sColCard   uint32 = 0xFF202124
+	sColLine   uint32 = 0xFF2C2D31
+	sColText   uint32 = 0xFFF2F2F2
+	sColSub    uint32 = 0xFF9AA0A8
+	sColOff    uint32 = 0xFF44474D
+	sColAccent uint32 = 0xFF2196F3
+	sColDanger uint32 = 0xFF8C2D3A
+)
 
+func applySettingsPalette() {
+	if isGrafito() {
+		sColBG, sColCard, sColLine = gBG, gSurface, 0xFF33373F
+		sColText, sColSub, sColOff = gText, gMuted, 0xFF4A4F59
+		sColAccent, sColDanger = 0xFF5865F2, 0xFF8C2D3A
+		return
+	}
+	sColBG, sColCard, sColLine = 0xFF161616, 0xFF202124, 0xFF2C2D31
+	sColText, sColSub, sColOff = 0xFFF2F2F2, 0xFF9AA0A8, 0xFF44474D
+	sColAccent, sColDanger = 0xFF2196F3, 0xFF8C2D3A
+}
+
+const (
 	WM_MOUSEWHEEL = 0x020A
 	WM_CLOSE      = 0x0010
 )
@@ -984,6 +1000,20 @@ func slotGrid(L *sLayout, bp, n, cols int, title string, removable bool) {
 		pr := L.hit(r, func() { openPicker(bp, i) })
 		if c != nil {
 			img, label, col := slotVisual(bp, i)
+			if isGrafito() {
+				// sobre la tarjeta grafito: botón un tono más claro con la pastilla de color
+				bg := uint32(gRaised)
+				if pr {
+					bg = lighten(bg, 0.12)
+				}
+				c.RoundRect(r.X, r.Y, r.W, r.H, 12*s, bg)
+				if img != nil {
+					chip := 40 * s
+					gChip(c, img, r.X+(r.W-chip)/2, r.Y+12*s, chip, col)
+				}
+				c.Text(label, semiFont, 12*s, semiStyle, gText, RectF{r.X + 6*s, r.Y + 58*s, r.W - 12*s, 26 * s}, AlignCenter, AlignCenter)
+				continue
+			}
 			col = themeTile(col)
 			if pr {
 				col = lighten(col, 0.15)

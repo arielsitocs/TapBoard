@@ -82,6 +82,9 @@ func drawThemeBackground(c *Canvas, w, h int) {
 	}
 	bg := themeBG()
 	c.Clear(bg)
+	if isGrafito() {
+		return // fondo liso
+	}
 	c.RoundRectGrad(-1, -1, float32(w)+2, float32(h)+2, 0, lighten(bg, 0.05), darken(bg, 0.25))
 }
 

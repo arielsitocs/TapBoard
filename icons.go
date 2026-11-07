@@ -30,11 +30,12 @@ func loadIcons() {
 
 // applyIconSet elige los íconos según el tema: planos en "Vidrio", 3D en el resto.
 func applyIconSet() {
+	applySettingsPalette()
 	m := map[string]*Image{}
 	for k, v := range icons3D {
 		m[k] = v
 	}
-	if isGlass() {
+	if isGlass() || isGrafito() {
 		for k, v := range iconsFlat {
 			m[k] = v
 		}
@@ -63,6 +64,7 @@ func loadIconDir(dir, suffix string, dst map[string]*Image) {
 		centered := centerContent(rgba)
 		dst[name] = newImage(centered.Rect.Dx(), centered.Rect.Dy(), centered.Pix)
 		dst[name].mono = strings.HasPrefix(name, "fx_")
+		dst[name].name = name
 	}
 }
 

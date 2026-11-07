@@ -61,7 +61,7 @@ func menuAppend(m uintptr, flags uintptr, id uintptr, text string) {
 
 func styleMenu(m uintptr) {
 	if menuBrush == 0 {
-		menuBrush, _, _ = pCreateSolidBrush.Call(0x00242120) // BGR de menuBG
+		menuBrush, _, _ = pCreateSolidBrush.Call(0x00242120) // BGR de menuBG (en Grafito se pinta encima)
 	}
 	type menuInfo struct {
 		CbSize, FMask, DwStyle, CyMax uint32
@@ -113,22 +113,26 @@ func onDrawItem(lparam uintptr) {
 	c := newCanvas(di.HDC)
 	defer c.Close()
 	r := RectF{float32(di.RcItem.L), float32(di.RcItem.T), float32(di.RcItem.R - di.RcItem.L), float32(di.RcItem.B - di.RcItem.T)}
-	c.RoundRect(r.X, r.Y, r.W, r.H, 0, menuBG)
+	bg, hover, line, check := uint32(menuBG), uint32(menuHover), uint32(0xFF3A3D42), uint32(0xFF4FC3F7)
+	if isGrafito() {
+		bg, hover, line, check = gSurface, gRaised, 0xFF3A3F48, gAccent
+	}
+	c.RoundRect(r.X, r.Y, r.W, r.H, 0, bg)
 	if it.sep {
 		y := r.Y + r.H/2
-		c.Line(r.X+fs*0.6, y, r.X+r.W-fs*0.6, y, 1, 0xFF3A3D42)
+		c.Line(r.X+fs*0.6, y, r.X+r.W-fs*0.6, y, 1, line)
 		return
 	}
 	selected := di.ItemState&ODS_SELECTED != 0 && !it.disabled
 	if selected {
-		c.RoundRect(r.X+4, r.Y+2, r.W-8, r.H-4, fs*0.45, menuHover)
+		c.RoundRect(r.X+4, r.Y+2, r.W-8, r.H-4, fs*0.45, hover)
 	}
 	col := uint32(0xFFF2F2F2)
 	if it.disabled {
 		col = 0xFF8A8F98
 	}
 	if it.checked || di.ItemState&ODS_CHECKED != 0 {
-		c.Text("", iconFont, fs*0.85, FontStyleRegular, 0xFF4FC3F7, RectF{r.X, r.Y, fs * 2.2, r.H}, AlignCenter, AlignCenter)
+		c.Text("", iconFont, fs*0.85, FontStyleRegular, check, RectF{r.X, r.Y, fs * 2.2, r.H}, AlignCenter, AlignCenter)
 	}
 	c.Text(it.text, textFont, fs, FontStyleRegular, col, RectF{r.X + fs*2.2, r.Y, r.W - fs*3.6, r.H}, AlignNear, AlignCenter)
 }

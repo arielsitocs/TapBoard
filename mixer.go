@@ -288,6 +288,12 @@ func mixSliderRange(i int) (x0, x1, y float32) {
 
 // mixerRect: 2000+i = tarjeta (barra), 2100+i = ícono (silenciar).
 func mixerRect(id int) RectF {
+	if isGrafito() {
+		if id >= 2100 {
+			return gMuteRect(id - 2100)
+		}
+		return gMixCard(id - 2000)
+	}
 	if id >= 2100 {
 		return mixIconRect(id - 2100)
 	}
@@ -296,6 +302,19 @@ func mixerRect(id int) RectF {
 
 func mixerHit(x, y int32) int {
 	fx, fy := float32(x), float32(y)
+	if isGrafito() {
+		for i := 0; i < len(mixApps) && i < maxMixApps; i++ {
+			if inRect(gMuteRect(i), fx, fy) {
+				return 2100 + i
+			}
+			f := gFaderRect(i)
+			r := gMixCard(i)
+			if inRect(RectF{r.X, f.Y - f.W*0.4, r.W, f.H + f.W*0.8}, fx, fy) {
+				return 2000 + i
+			}
+		}
+		return -1
+	}
 	for i := 0; i < len(mixApps) && i < maxMixApps; i++ {
 		ic := mixIconRect(i)
 		if inRect(RectF{ic.X - ic.W*0.15, ic.Y - ic.H*0.15, ic.W * 1.3, ic.H * 1.3}, fx, fy) {
@@ -310,7 +329,12 @@ func mixerHit(x, y int32) int {
 	return -1
 }
 
-func mixerSetFromX(i int, x int32) {
+func mixerSetFrom(i int, x, y int32) {
+	if isGrafito() {
+		f := gFaderRect(i)
+		setAppVolume(i, (f.Y+f.H-float32(y))/f.H) // barra vertical: arriba = más
+		return
+	}
 	x0, x1, _ := mixSliderRange(i)
 	setAppVolume(i, (float32(x)-x0)/(x1-x0))
 }
@@ -325,6 +349,10 @@ func paintMixerPage(c *Canvas) {
 	if len(mixApps) == 0 {
 		c.Text("Ninguna app está usando el audio ahora.", textFont, panelH*0.04, FontStyleRegular, colGrey,
 			RectF{0, 0, panelW, panelH}, AlignCenter, AlignCenter)
+		return
+	}
+	if isGrafito() {
+		gPaintMixer(c)
 		return
 	}
 	for i, a := range mixApps {

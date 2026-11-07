@@ -6,6 +6,8 @@ package main
 // al tocar "Actualizar", descarga el .exe nuevo, reemplaza el actual y se reinicia.
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -20,6 +22,8 @@ import (
 const (
 	updRepo = "arielsitocs/TapBoard"
 	updTag  = "__tapboard_update__"
+
+	updDownloadPrefix = "https://github.com/" + updRepo + "/releases/download/"
 )
 
 const (
@@ -35,6 +39,7 @@ type updMsg struct {
 	state    int
 	version  string
 	assetURL string
+	sumURL   string // TapBoard.exe.sha256 de la misma release
 	pageURL  string
 	progress float32
 	restart  bool
@@ -47,6 +52,7 @@ var (
 	updState    = updIdle
 	updVersion  string
 	updAsset    string
+	updSum      string
 	updPage     string
 	updProgress float32
 	updBusy     bool
@@ -110,15 +116,26 @@ func checkLatest(manual bool) {
 		updCh <- updMsg{state: updFailed, err: "Respuesta inválida", manual: manual}
 		return
 	}
-	asset := ""
+	asset, sum := "", ""
 	for _, a := range rel.Assets {
-		if strings.EqualFold(a.Name, "TapBoard.exe") {
+		// solo se aceptan descargas de las releases de este repositorio
+		if !strings.HasPrefix(a.URL, updDownloadPrefix) {
+			continue
+		}
+		switch {
+		case strings.EqualFold(a.Name, "TapBoard.exe"):
 			asset = a.URL
+		case strings.EqualFold(a.Name, "TapBoard.exe.sha256"):
+			sum = a.URL
 		}
 	}
+	page := rel.HTMLURL
+	if !strings.HasPrefix(page, "https://github.com/"+updRepo+"/") {
+		page = "https://github.com/" + updRepo + "/releases/latest"
+	}
 	v := strings.TrimPrefix(rel.Tag, "v")
-	if versionNewer(v, appVersion) && asset != "" {
-		updCh <- updMsg{state: updAvailable, version: v, assetURL: asset, pageURL: rel.HTMLURL, manual: manual}
+	if versionNewer(v, appVersion) && asset != "" && sum != "" {
+		updCh <- updMsg{state: updAvailable, version: v, assetURL: asset, sumURL: sum, pageURL: page, manual: manual}
 	} else {
 		updCh <- updMsg{state: updUpToDate, manual: manual}
 	}
@@ -149,7 +166,33 @@ func startUpdate() {
 	updProgress = 0
 	updLastPct = -1
 	toast("Descargando actualización…")
-	go downloadAndInstall(updAsset)
+	go downloadAndInstall(updAsset, updSum)
+}
+
+// expectedSum baja el .sha256 de la release ("<64 hex>  TapBoard.exe").
+func expectedSum(url string) (string, error) {
+	req, _ := http.NewRequest("GET", url, nil)
+	req.Header.Set("User-Agent", "TapBoard/"+appVersion)
+	resp, err := updClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("respondió %d", resp.StatusCode)
+	}
+	b, err := io.ReadAll(io.LimitReader(resp.Body, 1024))
+	if err != nil {
+		return "", err
+	}
+	f := strings.Fields(string(b))
+	if len(f) == 0 || len(f[0]) != 64 {
+		return "", fmt.Errorf("formato inválido")
+	}
+	if _, err := hex.DecodeString(f[0]); err != nil {
+		return "", err
+	}
+	return strings.ToLower(f[0]), nil
 }
 
 type progressReader struct {
@@ -171,11 +214,16 @@ func (p *progressReader) Read(b []byte) (int, error) {
 	return k, err
 }
 
-func downloadAndInstall(url string) {
+func downloadAndInstall(url, sumURL string) {
 	fail := func(msg string) { updCh <- updMsg{state: updFailed, err: msg, manual: true} }
 	exe, err := os.Executable()
 	if err != nil {
 		fail("No se encontró el ejecutable")
+		return
+	}
+	want, err := expectedSum(sumURL)
+	if err != nil {
+		fail("No se pudo verificar la actualización")
 		return
 	}
 	req, _ := http.NewRequest("GET", url, nil)
@@ -197,11 +245,18 @@ func downloadAndInstall(url string) {
 		fail("Sin permiso para escribir en la carpeta de TapBoard")
 		return
 	}
-	n, err := io.Copy(f, &progressReader{r: resp.Body, total: resp.ContentLength})
+	h := sha256.New()
+	n, err := io.Copy(io.MultiWriter(f, h), &progressReader{r: resp.Body, total: resp.ContentLength})
 	f.Close()
 	if err != nil || n < 1<<20 || (resp.ContentLength > 0 && n != resp.ContentLength) {
 		os.Remove(newPath)
 		fail("La descarga quedó incompleta")
+		return
+	}
+	// el archivo tiene que ser exactamente el que publicó la release
+	if got := hex.EncodeToString(h.Sum(nil)); got != want {
+		os.Remove(newPath)
+		fail("La descarga no pasó la verificación")
 		return
 	}
 	// Windows deja renombrar un .exe en uso: el actual pasa a .old y el nuevo toma su lugar.
@@ -250,7 +305,7 @@ func handleUpdMsg(m updMsg) {
 		}
 	case updAvailable:
 		updState = updAvailable
-		updVersion, updAsset, updPage = m.version, m.assetURL, m.pageURL
+		updVersion, updAsset, updSum, updPage = m.version, m.assetURL, m.sumURL, m.pageURL
 		updBusy = false
 		if m.manual {
 			toast("Versión " + m.version + " disponible")

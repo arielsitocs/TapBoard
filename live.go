@@ -167,6 +167,10 @@ func paintNotif(c *Canvas) {
 		c.SetAlpha(float32(fade))
 		defer c.SetAlpha(1)
 	}
+	if isGrafito() {
+		gPaintNotif(c, r)
+		return
+	}
 	c.RoundRect(r.X, r.Y+r.H*0.06, r.W, r.H, rad, 0x66000000) // sombra
 	top, bot := uint32(0xFF1F6B47), uint32(0xFF16523A)
 	icon := icons["speech_balloon"]

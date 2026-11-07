@@ -370,6 +370,10 @@ func fmtTime(t int64) string {
 
 // drawMediaHeader dibuja carátula, título, artista y progreso en la tarjeta de volumen.
 func drawMediaHeader(c *Canvas, r RectF, rightLimit float32) {
+	if isGrafito() {
+		gMediaHeader(c, r, rightLimit)
+		return
+	}
 	m := r.H * 0.12
 	fs := r.H * 0.12
 	art := r.H * 0.5
@@ -414,7 +418,11 @@ func drawMediaHeader(c *Canvas, r RectF, rightLimit float32) {
 			c.RoundRect(px0, py-th/2, px1-px0, th, th/2, 0x33FFFFFF)
 		}
 		if frac > 0 {
-			c.RoundRectGradH(px0, py-th/2, (px1-px0)*frac, th, th/2, 0xDDFFFFFF, lighten(mediaAccent, 0.35))
+			if isGrafito() {
+				c.RoundRect(px0, py-th/2, (px1-px0)*frac, th, th/2, gText)
+			} else {
+				c.RoundRectGradH(px0, py-th/2, (px1-px0)*frac, th, th/2, 0xDDFFFFFF, lighten(mediaAccent, 0.35))
+			}
 		}
 		if seeking {
 			c.Circle(px0+(px1-px0)*frac, py, th*1.6, colWhite)
@@ -472,11 +480,17 @@ func seekCommit() {
 // mediaStatic dibuja lo que no cambia de la tarjeta de música: carátula y la
 // pista de la barra de progreso (en coordenadas de la tarjeta r).
 func mediaStatic(c *Canvas, r RectF) {
+	if isGrafito() {
+		gMediaStatic(c, r)
+		return
+	}
 	m := r.H * 0.12
 	art := r.H * 0.5
 	ax, ay := r.X+m*0.6, r.Y+m*0.5
 	if mediaThumb != nil {
-		c.RoundRect(ax, ay+art*0.05, art, art, art*0.18, 0x60000000) // sombra
+		if !isGrafito() {
+			c.RoundRect(ax, ay+art*0.05, art, art, art*0.18, 0x60000000) // sombra
+		}
 		c.ClipRoundRect(ax, ay, art, art, art*0.18)
 		c.drawImageHQ(mediaThumb, ax, ay, art, art)
 		c.ResetClip()
@@ -491,6 +505,10 @@ func mediaStatic(c *Canvas, r RectF) {
 		px1 := r.X + r.W - m
 		py := ay + art*0.76
 		th := r.H * 0.045
-		c.RoundRect(tx, py-th/2, px1-tx, th, th/2, 0x33FFFFFF)
+		trk := uint32(0x33FFFFFF)
+		if isGrafito() {
+			trk = gTrack
+		}
+		c.RoundRect(tx, py-th/2, px1-tx, th, th/2, trk)
 	}
 }

@@ -549,6 +549,10 @@ func paintMonitorPage(c *Canvas) {
 			RectF{0, 0, panelW, panelH}, AlignCenter, AlignCenter)
 		return
 	}
+	if isGrafito() {
+		gPaintMonitor(c, s)
+		return
+	}
 	// CPU
 	cpuLines := []string{s.CPUName}
 	extra := []string{}

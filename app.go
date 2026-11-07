@@ -165,6 +165,10 @@ func layout(w, h float32) {
 	v := tiles[tVolume]
 	g := v.H * 0.30
 	tiles[tGear] = RectF{v.X + v.W - g - v.H*0.05, v.Y + v.H*0.05, g, g}
+	if isGrafito() {
+		g = v.H * 0.25
+		tiles[tGear] = RectF{v.X + v.W - g - v.H*0.09, v.Y + v.H*0.09, g, g}
+	}
 	if !swiping && !animOn {
 		scrollX = float32(page) * w
 	}
@@ -368,6 +372,11 @@ func paintDots(c *Canvas) {
 	n := numPages()
 	// ancho total: puntos + una pastilla
 	pill := r * 5.0
+	if isGrafito() {
+		r = panelH / 600 * 3
+		gap = r * 3.3
+		pill = r * 7.3
+	}
 	total := float32(n-1)*gap + pill
 	x := panelW/2 - total/2
 	for p := 0; p < n; p++ {
@@ -377,12 +386,20 @@ func paintDots(c *Canvas) {
 		}
 		w := r*2 + (pill-r*2)*(1-d)
 		a := uint32(255 - 165*d)
-		c.RoundRect(x, y-r, w, r*2, r, a<<24|0xFFFFFF)
+		col := a<<24 | 0xFFFFFF
+		if isGrafito() {
+			col = mix(gText, 0xFF4A4F59, d) // activa clara, el resto gris
+		}
+		c.RoundRect(x, y-r, w, r*2, r, col)
 		x += w + gap - r*2
 	}
 }
 
 func paintPage1(c *Canvas) {
+	if isGrafito() {
+		paintPage1Grafito(c)
+		return
+	}
 	// Parlante
 	if aud.Muted {
 		drawIconTile(c, tSpeaker, colRedOn, "muted_speaker", "")
@@ -450,6 +467,9 @@ func volTrack() (x0, x1, y float32) {
 func volStrip() RectF { return volStripIn(tiles[tVolume]) }
 
 func volStripIn(r RectF) RectF {
+	if isGrafito() {
+		return gVolStrip(r)
+	}
 	m := r.H * 0.07
 	h := r.H * 0.26
 	return RectF{r.X + m, r.Y + r.H - m - h, r.W - 2*m, h}
@@ -486,7 +506,11 @@ func drawVolume(c *Canvas) {
 	g := tiles[tGear]
 	if mediaShowing() {
 		sb := volStrip()
-		c.Text(pct, semiFont, sb.H*0.36, semiStyle, colWhite,
+		ps := sb.H * 0.36
+		if isGrafito() {
+			ps = sb.H * 0.44
+		}
+		c.Text(pct, semiFont, ps, semiStyle, colWhite,
 			RectF{sb.X + sb.W - sb.H*1.75, sb.Y, sb.H * 1.5, sb.H}, AlignFar, AlignCenter)
 	} else {
 		c.Text(pct, semiFont, fs*1.08, semiStyle, colWhite,
@@ -496,19 +520,42 @@ func drawVolume(c *Canvas) {
 	if pressed == tGear {
 		gc = colWhite
 	}
+	if isGrafito() {
+		bg := uint32(gRaised)
+		if pressed == tGear {
+			bg = lighten(gRaised, 0.08)
+		}
+		c.RoundRect(g.X, g.Y, g.W, g.H, g.W*0.3, bg)
+		gc = 0xFFB5BAC4
+		if pressed == tGear {
+			gc = gText
+		}
+		c.Text(string(rune(0xE713)), iconFont, g.H*0.46, FontStyleRegular, gc, g, AlignCenter, AlignCenter)
+		gc = 0 // ya se dibujó
+	}
 	c.Text("", iconFont, g.H*0.66, FontStyleRegular, gc, g, AlignCenter, AlignCenter)
 
 	x0, x1, y := volTrack()
 	th := r.H * 0.085
 	if mediaShowing() {
 		th = r.H * 0.045 // más discreta cuando hay música
+		if isGrafito() {
+			th = r.H * 0.09
+		}
 	}
 	if !mediaShowing() {
-		c.RoundRect(x0, y-th/2, x1-x0, th, th/2, colTrack)
+		trk := uint32(colTrack)
+		if isGrafito() {
+			trk = gTrack
+		}
+		c.RoundRect(x0, y-th/2, x1-x0, th, th/2, trk)
 	}
 	fillA, fillB := uint32(0xFF1E88E5), uint32(0xFF4FC3F7)
 	if mediaShowing() && mediaAccent != colBlue {
 		fillA, fillB = darken(mediaAccent, 0.25), mediaAccent
+	}
+	if isGrafito() {
+		fillA, fillB = gAccent, gAccent
 	}
 	if aud.Muted {
 		fillA, fillB = colDim, colDim
@@ -521,9 +568,16 @@ func drawVolume(c *Canvas) {
 	if mediaShowing() {
 		kr = r.H * 0.075
 	}
+	if isGrafito() && mediaShowing() {
+		kr = r.H * 0.07
+	}
 	if pressed == tVolume {
 		kr *= 1.15
-		c.Circle(fx, y, kr*1.7, 0x332196F3) // halo al arrastrar
+		halo := uint32(0x332196F3)
+		if isGrafito() {
+			halo = 0x33A9B4FF
+		}
+		c.Circle(fx, y, kr*1.7, halo) // halo al arrastrar
 	}
 	c.Circle(fx, y+kr*0.06, kr*1.04, 0x40000000) // sombra suave
 	c.Circle(fx, y, kr, colWhite)
@@ -789,7 +843,7 @@ func pointerDown(id int64, x, y int32) {
 	}
 	if t >= 2000 && t < 2100 {
 		mixDrag = t - 2000
-		mixerSetFromX(mixDrag, x)
+		mixerSetFrom(mixDrag, x, y)
 	}
 	startAnim()
 }
@@ -829,7 +883,7 @@ func pointerMove(id int64, x, y int32) {
 		return
 	}
 	if mixDrag >= 0 {
-		mixerSetFromX(mixDrag, x)
+		mixerSetFrom(mixDrag, x, y)
 		return
 	}
 	lastPX, lastPY = x, y
@@ -1165,6 +1219,9 @@ func refreshAudio(force bool) {
 }
 
 func reshowWindow() {
+	if panelHidden {
+		return
+	}
 	after := HWND_NOTOPMOST
 	if cfg.SiempreEncima {
 		after = HWND_TOPMOST
@@ -1370,8 +1427,35 @@ func pickMonitor() RECT {
 	return best.rect
 }
 
+// panelHidden: no está el monitor del panel (por ejemplo, el mini monitor está
+// apagado). En vez de tapar la pantalla principal, se esconde y vuelve sola
+// cuando Windows avisa que cambiaron las pantallas. Mientras tanto, el ícono de
+// la bandeja permite mostrarlo igual (panelForced), configurar o salir.
+var panelHidden bool
+
+const SW_HIDE = 0
+
 func placeWindow() {
 	panelRect = pickMonitor()
+	// "Auto" con una sola pantalla, o el monitor elegido (1, 2…) ya no existe:
+	// en ambos casos el panel terminaría encima de la pantalla principal.
+	missing := (cfg.Monitor == 0 && len(monitorsFound) <= 1) || cfg.Monitor > len(monitorsFound)
+	if !missing {
+		panelForced = false // volvió su monitor: ya no hace falta forzarlo
+	}
+	if missing && !demo && !panelForced {
+		if !panelHidden {
+			panelHidden = true
+			pShowWindow.Call(hwnd, SW_HIDE)
+			updateTrayTip()
+		}
+		return
+	}
+	if panelHidden {
+		panelHidden = false
+		pShowWindow.Call(hwnd, SW_SHOWNOACTIVATE)
+		updateTrayTip()
+	}
 	after := HWND_NOTOPMOST
 	if cfg.SiempreEncima {
 		after = HWND_TOPMOST
@@ -1487,8 +1571,15 @@ func wndProc(h, msg, wparam, lparam uintptr) uintptr {
 	case WM_DISPLAYCHANGE, WM_DPICHANGED:
 		placeWindow()
 		return 0
+	case WM_APP_TRAY:
+		onTrayMessage(lparam)
+		return 0
 	case WM_DESTROY:
 		pPostQuitMessage.Call(0)
+		return 0
+	}
+	if trayRestartMsg != 0 && msg == trayRestartMsg {
+		addTrayIcon() // el Explorador se reinició y borró el ícono
 		return 0
 	}
 	r, _, _ := pDefWindowProcW.Call(h, msg, wparam, lparam)
@@ -1521,15 +1612,19 @@ func main() {
 		pSetProcessDPIAware.Call()
 	}
 
+	// El modo demo (PANEL_DEMO, solo para pruebas) puede abrirse junto a la app real.
+	demo = os.Getenv("PANEL_DEMO") != ""
 	// Si la versión antigua (Panel Táctil) sigue abierta, avisar.
-	if _, _, e := pCreateMutexW.Call(0, 0, wstrPtr("PanelTactil_UnicaInstancia")); e != nil {
+	if demo {
+		// sin instancia única
+	} else if _, _, e := pCreateMutexW.Call(0, 0, wstrPtr("PanelTactil_UnicaInstancia")); e != nil {
 		if errno, ok := e.(syscall.Errno); ok && errno == 183 {
 			messageBox("Panel Táctil (la versión anterior) sigue abierto.\n\nCiérralo desde Engranaje → Salir y vuelve a abrir TapBoard.", "TapBoard")
 			return
 		}
 	}
 	// Después de actualizar, la versión anterior puede tardar un momento en cerrarse.
-	for try := 0; ; try++ {
+	for try := 0; !demo; try++ {
 		h, _, err := pCreateMutexW.Call(0, 0, wstrPtr("TapBoard_UnicaInstancia"))
 		if errno, ok := err.(syscall.Errno); ok && errno == 183 {
 			pCloseHandle.Call(h)
@@ -1552,11 +1647,11 @@ func main() {
 		return
 	}
 	cfg = loadConfig()
-	if versionNewer("2.3.0", cfg.SeenVersion) {
-		cfg.Theme = "glass" // el rediseño de la 2.3.0 se estrena activado
+	if versionNewer("3.0.0", cfg.SeenVersion) {
+		cfg.Theme = "grafito" // el rediseño de la 3.0.0 se estrena activado
 		saveConfig(cfg)
 	}
-	if exe, err := os.Executable(); err == nil {
+	if exe, err := os.Executable(); err == nil && !demo {
 		migrateAutostart(exe)
 		if autostartEnabled() {
 			setAutostart(true, exe) // por si el .exe cambió de nombre o de carpeta
@@ -1565,8 +1660,8 @@ func main() {
 	pickFonts()
 	loadIcons()
 
-	demo = os.Getenv("PANEL_DEMO") != ""
 	if demo {
+		fmt.Sscan(os.Getenv("PANEL_DEMO_PAGE"), &page) // página inicial, para capturas
 		aud = AudioState{OK: true, Volume: 0.36, MicOK: true, DeviceName: "Altavoces (ATK N9 PRO dongle)"}
 	} else {
 		audio = newAudio()
@@ -1599,7 +1694,13 @@ func main() {
 		return
 	}
 	placeWindow()
-	pShowWindow.Call(hwnd, SW_SHOWNOACTIVATE)
+	if !panelHidden {
+		pShowWindow.Call(hwnd, SW_SHOWNOACTIVATE)
+	}
+	if !demo {
+		addTrayIcon()
+		defer removeTrayIcon()
+	}
 	resetWhatsApp()
 	go whatsappWatcher()
 	go updateWorker()
@@ -1617,6 +1718,21 @@ func main() {
 	}
 	if os.Getenv("PANEL_SETTINGS") != "" {
 		openSettings()
+		if demo {
+			fmt.Sscan(os.Getenv("PANEL_DEMO_TAB"), &settingsTab) // pestaña, para capturas
+		}
+	}
+	if demo {
+		switch os.Getenv("PANEL_DEMO_OPEN") { // pantallas extra, para capturas
+		case "history":
+			openHistory()
+		case "picker":
+			openPicker(0, 1)
+		case "hotkey":
+			openPicker(0, 1)
+			edDraft = BotonP2{Tipo: "hotkey", Keys: "Ctrl+Shift+M", Nombre: "Mute Discord"}
+			loadDraftUI()
+		}
 	}
 	pSetTimer.Call(hwnd, 1, 100, 0)
 

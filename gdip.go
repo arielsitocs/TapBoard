@@ -306,7 +306,8 @@ var (
 
 // Image es un bitmap de GDI+ creado a partir de un PNG embebido.
 type Image struct {
-	mono bool // ícono plano (glifo blanco): se dibuja un poco más chico
+	mono bool   // ícono plano (glifo blanco): se dibuja un poco más chico
+	name string // nombre del ícono embebido ("gear"); vacío en íconos de apps
 	id   int
 	bmp  uintptr
 	buf  []byte // se mantiene vivo mientras exista el bitmap

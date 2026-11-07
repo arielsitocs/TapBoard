@@ -128,7 +128,12 @@ func paintHistory(c *Canvas) {
 	cw := min32(panelW, 860*s)
 	ox := (panelW - cw) / 2
 	c.ResetTransform()
-	c.RoundRect(0, oy-pad*2, panelW, panelH+pad*2, pad*2*(1-historyAnim), 0xF0121314)
+	gr := isGrafito()
+	overlay := uint32(0xF0121314)
+	if gr {
+		overlay = 0xF80B0C0F
+	}
+	c.RoundRect(0, oy-pad*2, panelW, panelH+pad*2, pad*2*(1-historyAnim), overlay)
 	c.Translate(ox, oy-histScroll)
 	histHits = nil
 	hit := func(r RectF, fn func()) bool {
@@ -137,24 +142,36 @@ func paintHistory(c *Canvas) {
 	}
 	y := 20 * s
 	is := 34 * s
-	c.DrawImage(icons["speech_balloon"], 22*s, y, is, is)
-	c.Text("WhatsApp", semiFont, 22*s, semiStyle, sColText, RectF{22*s + is + 10*s, y, cw * 0.5, is}, AlignNear, AlignCenter)
+	if gr {
+		c.RoundRect(22*s, y, is, is, is*0.3, gGreen)
+		gis := is * 0.5
+		gIcon(c, nil, glyphs["speech_balloon"], 22*s+(is-gis)/2, y+(is-gis)/2, gis, gInk)
+	} else {
+		c.DrawImage(icons["speech_balloon"], 22*s, y, is, is)
+	}
+	c.Text("WhatsApp", semiFont, 22*s, semiStyle, sColText, RectF{22*s + is + 12*s, y, cw * 0.5, is}, AlignNear, AlignCenter)
 	{
 		bh := 36 * s
 		b1 := RectF{cw - 22*s - 104*s, y - 1*s, 104 * s, bh}
 		b2 := RectF{b1.X - 10*s - 150*s, y - 1*s, 150 * s, bh}
 		col := uint32(0xFF34373C)
+		if gr {
+			col = gRaised
+		}
 		if hit(b1, closeHistory) {
 			col = lighten(col, 0.15)
 		}
 		c.RoundRect(b1.X, b1.Y, b1.W, b1.H, bh/2, col)
 		c.Text("Cerrar", semiFont, 14*s, semiStyle, sColText, b1, AlignCenter, AlignCenter)
-		col = 0xFF1F6B47
+		col, ink := uint32(0xFF1F6B47), sColText
+		if gr {
+			col, ink = gGreen, gInk
+		}
 		if hit(b2, func() { openWhatsApp(); closeHistory() }) {
 			col = lighten(col, 0.15)
 		}
 		c.RoundRect(b2.X, b2.Y, b2.W, b2.H, bh/2, col)
-		c.Text("Abrir WhatsApp", semiFont, 14*s, semiStyle, sColText, b2, AlignCenter, AlignCenter)
+		c.Text("Abrir WhatsApp", semiFont, 14*s, semiStyle, ink, b2, AlignCenter, AlignCenter)
 	}
 	y += is + 18*s
 	list := getHistory()
@@ -171,20 +188,39 @@ func paintHistory(c *Canvas) {
 	for _, n := range list {
 		r := RectF{16 * s, y, cw - 32*s, ch}
 		col := uint32(0xFF1F2124)
+		if gr {
+			col = gSurface
+		}
 		if hit(r, func() { openWhatsApp(); closeHistory() }) {
 			col = lighten(col, 0.1)
 		}
 		if y+ch >= histScroll-20 && y <= histScroll+panelH+20 {
-			c.RoundRect(r.X, r.Y, r.W, r.H, 14*s, col)
-			c.RoundRect(r.X, r.Y+14*s, 4*s, r.H-28*s, 2*s, 0xFF25D366)
-			when := fmtWhen(filetimeToTime(n.Arrival))
-			c.Text(n.Title, semiFont, 15*s, semiStyle, sColText, RectF{r.X + 20*s, r.Y + 10*s, r.W - 160*s, 24 * s}, AlignNear, AlignCenter)
-			c.Text(when, textFont, 12*s, FontStyleRegular, sColSub, RectF{r.X + r.W - 150*s, r.Y + 10*s, 134 * s, 24 * s}, AlignFar, AlignCenter)
 			body := n.Body
 			if !cfg.WhatsAppTexto || body == "" {
 				body = "Nuevo mensaje"
 			}
-			c.Text(body, textFont, 13.5*s, FontStyleRegular, 0xFFC8CCD2, RectF{r.X + 20*s, r.Y + 36*s, r.W - 40*s, 24 * s}, AlignNear, AlignCenter)
+			when := fmtWhen(filetimeToTime(n.Arrival))
+			if gr {
+				// tarjeta grafito con la inicial del contacto en una pastilla verde
+				c.RoundRect(r.X, r.Y, r.W, r.H, 16*s, col)
+				av := 40 * s
+				ax, ay := r.X+15*s, r.Y+(r.H-av)/2
+				c.RoundRect(ax, ay, av, av, av*0.3, 0xFF2C4A3A)
+				ini := []rune(n.Title)
+				if len(ini) > 0 {
+					c.Text(upper(string(ini[:1])), semiFont, 17*s, semiStyle, gGreen, RectF{ax, ay, av, av}, AlignCenter, AlignCenter)
+				}
+				tx := ax + av + 14*s
+				c.Text(n.Title, semiFont, 15*s, semiStyle, gText, RectF{tx, r.Y + 11*s, r.X + r.W - tx - 150*s, 24 * s}, AlignNear, AlignCenter)
+				c.Text(when, textFont, 12.5*s, FontStyleRegular, gMuted, RectF{r.X + r.W - 150*s, r.Y + 11*s, 134 * s, 24 * s}, AlignFar, AlignCenter)
+				c.Text(body, textFont, 13.5*s, FontStyleRegular, 0xFFB5BAC4, RectF{tx, r.Y + 35*s, r.X + r.W - tx - 18*s, 24 * s}, AlignNear, AlignCenter)
+			} else {
+				c.RoundRect(r.X, r.Y, r.W, r.H, 14*s, col)
+				c.RoundRect(r.X, r.Y+14*s, 4*s, r.H-28*s, 2*s, 0xFF25D366)
+				c.Text(n.Title, semiFont, 15*s, semiStyle, sColText, RectF{r.X + 20*s, r.Y + 10*s, r.W - 160*s, 24 * s}, AlignNear, AlignCenter)
+				c.Text(when, textFont, 12*s, FontStyleRegular, sColSub, RectF{r.X + r.W - 150*s, r.Y + 10*s, 134 * s, 24 * s}, AlignFar, AlignCenter)
+				c.Text(body, textFont, 13.5*s, FontStyleRegular, 0xFFC8CCD2, RectF{r.X + 20*s, r.Y + 36*s, r.W - 40*s, 24 * s}, AlignNear, AlignCenter)
+			}
 		}
 		y += ch + 10*s
 	}

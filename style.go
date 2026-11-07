@@ -29,6 +29,10 @@ func glassCard(c *Canvas, x, y, w, h, rad float32, col uint32) {
 
 // flatCard: tarjeta plana (estilo minimalista), en caché.
 func flatCard(c *Canvas, x, y, w, h, rad float32, col uint32) {
+	if isGrafito() {
+		c.RoundRect(x, y, w, h, min32(w, h)*0.14, gSurface)
+		return
+	}
 	iw, ih := ri(w), ri(h)
 	if isGlass() {
 		rad *= 0.62
@@ -281,7 +285,8 @@ func volCardBG(c *Canvas, r RectF) {
 	col := themeTile(0xFF202124)
 	amb, thumb := 0, 0
 	show := mediaShowing()
-	if show && mediaAmbient != nil {
+	grafito := isGrafito()
+	if show && mediaAmbient != nil && !grafito {
 		amb = mediaAmbient.id
 	}
 	if mediaThumb != nil {
@@ -289,14 +294,16 @@ func volCardBG(c *Canvas, r RectF) {
 	}
 	m := 3 + int(r.H*0.06)
 	iw, ih := ri(r.W), ri(r.H)
-	key := "volbg|" + itoa(iw) + "|" + itoa(ih) + "|" + hex32(col) + "|" + itoa(amb) + "|" + boolS(isGlass())
+	key := "volbg|" + itoa(iw) + "|" + itoa(ih) + "|" + hex32(col) + "|" + itoa(amb) + "|" + boolS(isGlass()) + "|" + boolS(grafito)
 	if show {
 		key += "|m|" + itoa(thumb) + "|" + boolS(media.End > 0) + "|" + boolS(aud.Muted)
 	}
 	sn := cachedRender(key, iw+2*m, ih+2*m, func(cc *Canvas) {
 		x, y := float32(m), float32(m)
 		rr := RectF{x, y, float32(iw), float32(ih)}
-		if isGlass() {
+		if grafito {
+			cc.RoundRect(x, y, float32(iw), float32(ih), rad, gSurface)
+		} else if isGlass() {
 			frost(cc, x, y, float32(iw), float32(ih), rad)
 		} else {
 			cc.RoundRect(x, y, float32(iw), float32(ih), rad, col)
@@ -308,16 +315,21 @@ func volCardBG(c *Canvas, r RectF) {
 			mediaStatic(cc, rr)
 			// franja del volumen con su ícono y la pista de la barra
 			sb := volStripIn(rr)
-			cc.RoundRect(sb.X, sb.Y, sb.W, sb.H, sb.H/2, 0x14FFFFFF)
 			ic := "speaker_high_volume"
 			if aud.Muted {
 				ic = "muted_speaker"
 			}
 			is := sb.H * 0.62
-			cc.drawImageHQ(icons[ic], sb.X+sb.H*0.32, sb.Y+(sb.H-is)/2, is, is)
 			th := rr.H * 0.045
 			x0, x1, ty := sb.X+sb.H*1.15, sb.X+sb.W-sb.H*1.9, sb.Y+sb.H/2
-			cc.RoundRect(x0, ty-th/2, x1-x0, th, th/2, colTrack)
+			if grafito {
+				gIcon(cc, icons[ic], 0, sb.X+sb.H*0.3, sb.Y+(sb.H-is)/2, is, 0xFFB5BAC4)
+				cc.RoundRect(x0, ty-th, x1-x0, th*2, th, gTrack)
+			} else {
+				cc.RoundRect(sb.X, sb.Y, sb.W, sb.H, sb.H/2, 0x14FFFFFF)
+				cc.drawImageHQ(icons[ic], sb.X+sb.H*0.32, sb.Y+(sb.H-is)/2, is, is)
+				cc.RoundRect(x0, ty-th/2, x1-x0, th, th/2, colTrack)
+			}
 		}
 	})
 	if sn != nil {
@@ -384,6 +396,9 @@ func drawCached(c *Canvas, i int, sn *Snapshot, m int) RectF {
 
 // Estilo 1 (página principal): minimalista, un solo color, ícono centrado.
 func minimalRadius(r RectF) float32 {
+	if isGrafito() {
+		return gRadius(r)
+	}
 	if isGlass() {
 		return min32(r.W, r.H) * 0.15 // esquinas más sutiles en el vidrio
 	}

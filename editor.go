@@ -252,7 +252,11 @@ func paintKeyboard(c *Canvas, oy float32) {
 	s := panelSetScale()
 	kh := kbdHeight()
 	top := oy + panelH - kh
-	c.RoundRect(0, top, panelW, kh+20*s, 16*s, 0xFF1C1D20)
+	kbBG := uint32(0xFF1C1D20)
+	if isGrafito() {
+		kbBG = 0xFF16181C
+	}
+	c.RoundRect(0, top, panelW, kh+20*s, 16*s, kbBG)
 	gp := 6 * s
 	keyH := 40 * s
 	kw := min32((panelW-gp*11)/10, 90*s)
@@ -411,7 +415,9 @@ func paintPicker(c *Canvas) {
 func paintHoldLeft(c *Canvas, lx, y, lw, s float32, btn func(RectF, string, uint32, func())) {
 	img, label, col := visualOf(edMainDraft)
 	pr := RectF{lx, y, lw, lw * 0.66}
-	if sn, m := appCardSnap(pr, col, img); sn != nil {
+	if isGrafito() {
+		gPreviewCard(c, pr, img, label, kindOf(edMainDraft), col)
+	} else if sn, m := appCardSnap(pr, col, img); sn != nil {
 		c.DrawSnapshot(sn, ri(pr.X)-m, ri(pr.Y)-m)
 		padI := pr.H * 0.11
 		c.TextWrap(label, semiFont, min32(pr.W, pr.H)*0.088, semiStyle, 0xF2FFFFFF,
@@ -440,7 +446,9 @@ func paintHoldLeft(c *Canvas, lx, y, lw, s float32, btn func(RectF, string, uint
 func paintTapLeft(c *Canvas, lx, y, lw, s float32, btn func(RectF, string, uint32, func()), fixed func(RectF, func()) bool) {
 	img, label, col := visualOf(edDraft)
 	pr := RectF{lx, y, lw, lw * 0.66}
-	if sn, m := appCardSnap(pr, col, img); sn != nil {
+	if isGrafito() {
+		gPreviewCard(c, pr, img, label, kindOf(edDraft), col)
+	} else if sn, m := appCardSnap(pr, col, img); sn != nil {
 		c.DrawSnapshot(sn, ri(pr.X)-m, ri(pr.Y)-m)
 		padI := pr.H * 0.11
 		c.TextWrap(label, semiFont, min32(pr.W, pr.H)*0.088, semiStyle, 0xF2FFFFFF,
@@ -482,6 +490,9 @@ func paintTapLeft(c *Canvas, lx, y, lw, s float32, btn func(RectF, string, uint3
 		if hx != "" {
 			cc, _ = parseHexColor(hx)
 			cc = lighten(cc, 0.08)
+			if isGrafito() {
+				cc = gPastel(cc) // así se ve el color en la pastilla del ícono
+			}
 		}
 		if p {
 			cc = lighten(cc, 0.15)
@@ -491,7 +502,11 @@ func paintTapLeft(c *Canvas, lx, y, lw, s float32, btn func(RectF, string, uint3
 			c.Text("Auto", semiFont, 10*s, semiStyle, sColText, r, AlignCenter, AlignCenter)
 		}
 		if hx == edDraft.Color {
-			c.Arc(x+sz/2, yy+sz/2, sz/2-2*s, 0, 360, 3*s, 0xFFFFFFFF)
+			ring := uint32(0xFFFFFFFF)
+			if isGrafito() && hx != "" {
+				ring = gInk // anillo oscuro: se ve sobre los tonos claros
+			}
+			c.Arc(x+sz/2, yy+sz/2, sz/2-2*s, 0, 360, 3*s, ring)
 		}
 	}
 	y += 2*(sz+8*s) + 4*s
@@ -612,6 +627,10 @@ func (L *edLayout) grid(n int, item func(i int, vis bool) (*Image, string, uint3
 		r := RectF{x, y, cw, ch}
 		p := L.hit(r, fn)
 		if !L.visible(y, ch) {
+			continue
+		}
+		if isGrafito() {
+			gOptionTile(L.c, r, s, img, label, col, sel, p)
 			continue
 		}
 		col = themeTile(col)

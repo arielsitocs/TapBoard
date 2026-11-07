@@ -55,6 +55,13 @@ func paintToast(c *Canvas) {
 	y := panelH - h - (pad*1.2 + 10) - fs*0.4 + (1-e)*fs*1.2
 	c.SetAlpha(e)
 	c.RoundRect(x, y+3, w, h, h/2, 0x50000000)
+	if isGrafito() {
+		// pastilla clara sobre el fondo oscuro: se lee de un vistazo
+		c.RoundRect(x, y, w, h, h/2, gText)
+		c.Text(toastText, semiFont, fs, semiStyle, gInk, RectF{x + fs, y, w - fs*2, h}, AlignCenter, AlignCenter)
+		c.SetAlpha(1)
+		return
+	}
 	c.RoundRect(x, y, w, h, h/2, 0xF0303236)
 	c.RoundRectStroke(x+0.5, y+0.5, w-1, h-1, h/2, 1, 0x22FFFFFF)
 	c.Text(toastText, semiFont, fs, semiStyle, 0xFFF2F2F2, RectF{x + fs, y, w - fs*2, h}, AlignCenter, AlignCenter)

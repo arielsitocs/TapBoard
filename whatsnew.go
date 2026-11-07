@@ -138,8 +138,13 @@ func paintWhatsNew(c *Canvas) {
 	x := (panelW - w) / 2
 	y := (panelH-h)/2 + (1-e)*24*s
 	c.RoundRect(x, y+6*s, w, h, 22*s, 0x60000000)
-	c.RoundRectGrad(x, y, w, h, 22*s, 0xFF2A2D33, 0xFF1F2125)
-	c.RoundRectStroke(x+0.5, y+0.5, w-1, h-1, 22*s, 1, 0x22FFFFFF)
+	if isGrafito() {
+		c.RoundRect(x, y, w, h, 22*s, gSurface)
+		c.RoundRectStroke(x+0.5, y+0.5, w-1, h-1, 22*s, 1, 0xFF3A3F48)
+	} else {
+		c.RoundRectGrad(x, y, w, h, 22*s, 0xFF2A2D33, 0xFF1F2125)
+		c.RoundRectStroke(x+0.5, y+0.5, w-1, h-1, 22*s, 1, 0x22FFFFFF)
+	}
 
 	is := 46 * s
 	c.DrawImage(icons["tapboard_logo"], x+24*s, y+22*s, is, is)
@@ -152,7 +157,11 @@ func paintWhatsNew(c *Canvas) {
 		if ly+rowH > y+h-40*s {
 			break
 		}
-		c.Circle(x+34*s, ly+rowH/2, 3.5*s, sColAccent)
+		dot := sColAccent
+		if isGrafito() {
+			dot = gAccent
+		}
+		c.Circle(x+34*s, ly+rowH/2, 3.5*s, dot)
 		c.Text(it, textFont, 15*s, FontStyleRegular, 0xF0FFFFFF, RectF{x + 48*s, ly, w - 72*s, rowH}, AlignNear, AlignCenter)
 		ly += rowH
 	}
