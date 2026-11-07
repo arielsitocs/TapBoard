@@ -132,6 +132,14 @@ func visualOf(b BotonP2) (*Image, string, uint32) {
 		img, label, col = icons["memo"], "Escribir texto", 0xFF4A3F2E
 	case "page":
 		img, label, col = icons["right_arrow"], "Página "+itoa(b.Page), 0xFF3D3550
+	case "playlist":
+		img, label, col = icons["musical_note"], "Playlist", playlistCol
+		if p, ok := playlistByURL(b.Ruta); ok {
+			label = playlistName(p)
+			if c := playlistCover(p); c != nil {
+				img = c
+			}
+		}
 	default:
 		a := actionByKey(b.Accion)
 		img, label, col = icons[a.icon], a.label, a.col
@@ -333,6 +341,11 @@ func runButton(b BotonP2, bp, i int) {
 		return
 	case "media":
 		runMedia(b.Accion)
+		return
+	case "playlist":
+		if p, ok := playlistByURL(b.Ruta); ok {
+			playPlaylist(p)
+		}
 		return
 	case "page":
 		if p := b.Page - 1; p >= 0 && p < numPages() {

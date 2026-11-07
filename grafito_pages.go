@@ -463,7 +463,82 @@ func gPaintNotif(c *Canvas, r RectF) {
 
 // ---------------------------------------------------------------- reposo
 
-// gPaintIdle: reloj grande, fecha, lo que suena y los mensajes pendientes.
+// idleClockFont: letra fina para el reloj del reposo (la que haya instalada).
+var idleClockFont string
+
+func clockFont() string {
+	if idleClockFont == "" {
+		idleClockFont = textFont
+		for _, f := range []string{"Segoe UI Variable Display Light", "Segoe UI Variable Display Semil", "Segoe UI Light"} {
+			if fontExists(f) {
+				idleClockFont = f
+				break
+			}
+		}
+	}
+	return idleClockFont
+}
+
+// gIdleBackground: con música, la carátula muy difuminada y oscura de fondo;
+// sin música, luces de color suaves que se mueven muy lento.
+func gIdleBackground(c *Canvas, now time.Time) {
+	t := float64(now.UnixMilli()%600000) / 600000 * 2 * math.Pi // una vuelta cada 10 min
+	if mediaShowing() && mediaAmbient != nil {
+		// la imagen de 7×7 estirada queda como un desenfoque; se mueve un poco
+		ox := float32(math.Sin(t)) * panelW * 0.04
+		oy := float32(math.Cos(t*0.7)) * panelH * 0.04
+		c.drawImageHQ(mediaAmbient, -panelW*0.15+ox, -panelH*0.25+oy, panelW*1.3, panelH*1.5)
+		c.RoundRect(-2, -2, panelW+4, panelH+4, 0, 0x9E000000)
+		c.RoundRectGrad(-2, panelH*0.45, panelW+4, panelH*0.57, 0, 0x00000000, 0xA0000000)
+		return
+	}
+	c.drawImageHQ(idleAurora(t), -2, -2, panelW+4, panelH+4)
+}
+
+var (
+	auroraImg *Image
+	auroraAt  time.Time
+)
+
+// idleAurora: imagen chica (64×38) con tres luces de color calculadas píxel a
+// píxel; estirada queda como un degradado suave, sin anillos. Se recalcula a
+// lo más una vez por segundo.
+func idleAurora(t float64) *Image {
+	if auroraImg != nil && time.Since(auroraAt) < time.Second {
+		return auroraImg
+	}
+	const w, h = 64, 38
+	blobs := []struct {
+		x, y, r    float64
+		cr, cg, cb float64
+	}{
+		{0.22 + 0.07*math.Sin(t), 0.32 + 0.06*math.Cos(t*1.3), 0.30, 58, 75, 214},
+		{0.80 + 0.06*math.Cos(t*0.8), 0.26 + 0.07*math.Sin(t*1.1), 0.26, 122, 63, 208},
+		{0.55 + 0.08*math.Sin(t*0.6+1), 0.86 + 0.05*math.Cos(t), 0.30, 22, 140, 136},
+	}
+	pix := make([]byte, w*h*4)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			r, g, b := 9.0, 10.0, 14.0 // casi negro
+			fx, fy := float64(x)/(w-1), float64(y)/(h-1)
+			for _, bl := range blobs {
+				dx, dy := fx-bl.x, (fy-bl.y)*float64(h)/float64(w)*1.6
+				a := 0.42 * math.Exp(-(dx*dx+dy*dy)/(2*bl.r*bl.r*0.36))
+				r += (bl.cr - r) * a
+				g += (bl.cg - g) * a
+				b += (bl.cb - b) * a
+			}
+			i := (y*w + x) * 4
+			pix[i], pix[i+1], pix[i+2], pix[i+3] = clampByte(r), clampByte(g), clampByte(b), 255
+		}
+	}
+	auroraImg, auroraAt = newImage(w, h, pix), time.Now()
+	return auroraImg
+}
+
+// gPaintIdle: pantalla de reposo. Con música: reloj y fecha a la izquierda y
+// la canción a la derecha, con su carátula grande sobre su propio color. Sin
+// música: el reloj al centro sobre luces suaves.
 func gPaintIdle(c *Canvas) {
 	a := uint32(255 * math.Min(1, float64(idleAnim)))
 	c.ResetTransform()
@@ -474,67 +549,98 @@ func gPaintIdle(c *Canvas) {
 	ta := uint32(255 * math.Min(1, float64(idleAnim-0.6)/0.4))
 	col := func(c uint32) uint32 { return (c & 0x00FFFFFF) | (ta*((c>>24)&0xFF)/255)<<24 }
 	now := time.Now()
+	gIdleBackground(c, now)
+	if ta < 255 {
+		c.RoundRect(-2, -2, panelW+4, panelH+4, 0, (255-ta)<<24) // el fondo aparece de a poco
+	}
 	// pequeño desplazamiento cada minuto para no marcar la pantalla
-	dx := float32(math.Sin(float64(now.Minute()))) * panelW * 0.025
-	dy := float32(math.Cos(float64(now.Minute()))) * panelH * 0.025
+	dx := float32(math.Sin(float64(now.Minute()))) * panelW * 0.02
+	dy := float32(math.Cos(float64(now.Minute()))) * panelH * 0.02
 
-	clockS := panelH * 0.28
-	block := clockS*1.15 + panelH*0.06
-	show := mediaShowing()
-	if show {
-		block += panelH * 0.2
-	}
-	y := (panelH-block)/2 - panelH*0.03 + dy
-	c.Text(now.Format("15:04"), textFont, clockS, FontStyleRegular, col(0xFFC9CCD3), RectF{dx, y, panelW, clockS * 1.15}, AlignCenter, AlignCenter)
-	y += clockS * 1.15
-	dias := []string{"Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"}
+	dias := []string{"domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"}
 	meses := []string{"enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"}
-	fs := panelH * 0.037
-	c.Text(fmt.Sprintf("%s %d de %s", dias[now.Weekday()], now.Day(), meses[now.Month()-1]), textFont, fs, FontStyleRegular,
-		col(0xFF7A7F88), RectF{dx, y, panelW, fs * 1.6}, AlignCenter, AlignCenter)
-	y += fs*1.6 + panelH*0.05
+	date := upper(fmt.Sprintf("%s %d de %s", dias[now.Weekday()], now.Day(), meses[now.Month()-1]))
+	show := mediaShowing()
 
-	if show {
-		// tarjeta de lo que suena
-		art := panelH * 0.087
-		pp := art * 0.23
-		w := panelW * 0.42
-		h := art + 2*pp
-		x := (panelW-w)/2 + dx
-		c.RoundRect(x, y, w, h, h*0.3, col(0xFF1A1C21))
-		ax, ay := x+pp, y+pp
-		if mediaThumb != nil {
-			c.ClipRoundRect(ax, ay, art, art, art*0.22)
-			c.drawImageHQ(mediaThumb, ax, ay, art, art)
-			c.ResetClip()
-			if ta < 255 {
-				c.RoundRect(ax, ay, art, art, art*0.22, (255-ta)<<24)
-			}
-		}
-		tx := ax + art + pp
-		tw := x + w - pp - tx
-		ts := panelH * 0.027
-		c.Text(sinEmojis(media.Title), semiFont, ts, semiStyle, col(0xFFA7ABB3), RectF{tx, ay + art*0.08, tw, ts * 1.5}, AlignNear, AlignCenter)
-		sub := media.Artist
-		if media.Status != mediaPlaying {
-			sub = "En pausa · " + sub
-		}
-		c.Text(sinEmojis(sub), textFont, ts*0.85, FontStyleRegular, col(0xFF5E626B), RectF{tx, ay + art*0.52, tw, ts * 1.4}, AlignNear, AlignCenter)
-		y += h + panelH*0.03
+	// reloj, fecha y mensajes: un bloque que va a la izquierda (con música) o al centro
+	clockS := panelH * 0.30
+	if !show {
+		clockS = panelH * 0.34
 	}
+	ds := panelH * 0.03
+	blockH := clockS*1.05 + ds*2.2
+	if notifPending() > 0 {
+		blockH += panelH * 0.09
+	}
+	bx, bw, align := panelW*0.075+dx, panelW*0.46, AlignNear
+	if !show {
+		bx, bw, align = dx, panelW, AlignCenter
+	}
+	y := (panelH-blockH)/2 + dy
+	c.Text(now.Format("15:04"), clockFont(), clockS, FontStyleRegular, col(0xFFF2F3F5), RectF{bx - clockS*0.04, y, bw, clockS * 1.05}, align, AlignCenter)
+	y += clockS * 1.05
+	c.Text(date, semiFont, ds, semiStyle, col(0xCCFFFFFF), RectF{bx, y, bw, ds * 1.6}, align, AlignCenter)
+	y += ds * 2.2
 	if n := notifPending(); n > 0 {
 		t := "1 mensaje de WhatsApp"
 		if n > 1 {
 			t = itoa(n) + " mensajes de WhatsApp"
 		}
-		ms := panelH * 0.024
+		ms := panelH * 0.026
 		tw := textWidth(c, t, textFont, ms, FontStyleRegular)
-		x := (panelW-tw-ms*1.1)/2 + dx
-		c.Circle(x+ms*0.3, y+ms*0.8, ms*0.3, col(gGreen))
-		c.Text(t, textFont, ms, FontStyleRegular, col(0xFF6B7079), RectF{x + ms*1.1, y, tw + ms*0.7, ms * 1.6}, AlignNear, AlignCenter)
+		pw, ph := tw+ms*2.6, ms*2.2
+		px := bx
+		if !show {
+			px = (panelW-pw)/2 + dx
+		}
+		py := y + panelH*0.02
+		c.RoundRect(px, py, pw, ph, ph/2, col(0x22FFFFFF))
+		c.Circle(px+ms*0.95, py+ph/2, ms*0.3, col(gGreen))
+		c.Text(t, textFont, ms, FontStyleRegular, col(0xE6FFFFFF), RectF{px + ms * 1.6, py, tw + ms*0.8, ph}, AlignNear, AlignCenter)
 	}
+
+	if show {
+		// la canción: carátula grande, título, artista y progreso
+		art := panelH * 0.42
+		cx := panelW*0.73 + dx
+		ax, ay := cx-art/2, (panelH-art-panelH*0.2)/2+dy
+		c.RoundRect(ax, ay+art*0.03, art, art, art*0.06, col(0x66000000)) // sombra
+		if mediaThumb != nil {
+			c.ClipRoundRect(ax, ay, art, art, art*0.06)
+			c.drawImageHQ(mediaThumb, ax, ay, art, art)
+			c.ResetClip()
+			if ta < 255 {
+				c.RoundRect(ax, ay, art, art, art*0.06, (255-ta)<<24)
+			}
+		} else {
+			c.RoundRect(ax, ay, art, art, art*0.06, col(0x33FFFFFF))
+		}
+		tw := art * 1.25
+		ty := ay + art + panelH*0.035
+		ts := panelH * 0.036
+		c.Text(sinEmojis(media.Title), semiFont, ts, semiStyle, col(0xFFFFFFFF), RectF{cx - tw/2, ty, tw, ts * 1.45}, AlignCenter, AlignCenter)
+		sub := sinEmojis(media.Artist)
+		if media.Status != mediaPlaying {
+			sub = "En pausa · " + sub
+		}
+		c.Text(sub, textFont, ts*0.75, FontStyleRegular, col(0xB3FFFFFF), RectF{cx - tw/2, ty + ts*1.4, tw, ts * 1.3}, AlignCenter, AlignCenter)
+		if media.End > 0 {
+			pos := media.Pos
+			if media.Status == mediaPlaying && media.Updated > 0 {
+				pos += nowFiletime() - media.Updated
+			}
+			f := float32(math.Min(1, float64(pos)/float64(media.End)))
+			bw, bh := art, panelH*0.008
+			by := ty + ts*3.1
+			c.RoundRect(ax, by, bw, bh, bh/2, col(0x33FFFFFF))
+			if f > 0 {
+				c.RoundRect(ax, by, bw*f, bh, bh/2, col(0xFF000000|gAlbumColor()&0xFFFFFF))
+			}
+		}
+	}
+
 	hs := panelH * 0.022
-	c.Text("Toca para volver", textFont, hs, FontStyleRegular, col(0xFF6B7079), RectF{0, panelH - hs*3, panelW, hs * 1.6}, AlignCenter, AlignCenter)
+	c.Text("Toca para volver", textFont, hs, FontStyleRegular, col(0x66FFFFFF), RectF{0, panelH - hs*3, panelW, hs * 1.6}, AlignCenter, AlignCenter)
 }
 
 // notifPending: mensajes de WhatsApp que llegaron y siguen en el aviso.

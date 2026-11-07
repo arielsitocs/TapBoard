@@ -378,6 +378,8 @@ func kindOf(b BotonP2) string {
 		return "Texto"
 	case "page":
 		return "Ir a página"
+	case "playlist":
+		return "Playlist"
 	}
 	return "Sistema"
 }

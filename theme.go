@@ -84,7 +84,7 @@ func idleIndex() int {
 }
 
 func checkIdle() {
-	if idle || cfg.IdleMinutes <= 0 || settingsOpen || pickerOpen || historyOpen || activePointer != math.MinInt64 {
+	if idle || cfg.IdleMinutes <= 0 || settingsOpen || pickerOpen || historyOpen || plOpen || activePointer != math.MinInt64 {
 		return
 	}
 	limit := time.Duration(cfg.IdleMinutes) * time.Minute

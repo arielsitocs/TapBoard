@@ -65,7 +65,7 @@ func checkAutoPage() {
 	}
 	autoLastExe = exe
 	// no interrumpir si el usuario está usando el panel
-	busy := settingsOpen || pickerOpen || historyOpen || reorderID >= 0 || swiping || vswiping || dragging || idle
+	busy := settingsOpen || pickerOpen || historyOpen || plOpen || reorderID >= 0 || swiping || vswiping || dragging || idle
 	r, ok := ruleFor(exe)
 	if ok {
 		p := r.Page - 1

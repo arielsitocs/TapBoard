@@ -608,6 +608,54 @@ func layoutSettings(c *Canvas, w, s float32) float32 {
 				func(b bool) { cfg.WhatsAppTexto = b }, cfg.WhatsApp)},
 		})
 
+		// cuenta de Spotify: trae todas las playlists y las pone a sonar
+		L.y += 18 * L.s
+		L.section("CUENTA DE SPOTIFY")
+		idSub := "Pégalo desde tu app en developer.spotify.com"
+		if id := cfg.SpotifyClientID; len(id) >= 8 {
+			idSub = id[:4] + "…" + id[len(id)-4:]
+		}
+		acct := []sRow{
+			{"Client ID", idSub, 64, buttonCtl([]string{"Pegar"}, []uint32{0xFF34373C},
+				[]func(){func() { pasteSpotifyClientID(); invalidateAll() }})},
+			{"Redirect URI", spRedirect, 64, buttonCtl([]string{"Copiar"}, []uint32{0xFF34373C},
+				[]func(){func() {
+					if setClipboardText(spRedirect) {
+						toast("Copiado: " + spRedirect)
+					}
+				}})},
+		}
+		if spotifyConnected() {
+			spMu.Lock()
+			who := spUser
+			spMu.Unlock()
+			st := "Conectado"
+			if who != "" {
+				st += " como " + who
+			}
+			acct = append(acct, sRow{st, "Tus playlists aparecen solas en la tarjeta de música", 64,
+				buttonCtl([]string{"Desconectar"}, []uint32{0xFF4A2C30}, []func(){func() { disconnectSpotify(); invalidateAll() }})})
+		} else {
+			acct = append(acct, sRow{"Conectar mi cuenta", "Se abre el navegador para aceptar", 64,
+				buttonCtl([]string{"Conectar"}, []uint32{sColAccent}, []func(){func() { connectSpotify(); invalidateAll() }})})
+		}
+		L.card(acct)
+
+		// playlists agregadas a mano (sirven también sin conectar la cuenta)
+		L.y += 18 * L.s
+		L.section("PLAYLISTS CON LINK")
+		rows := []sRow{{"Agregar playlist o álbum", "En Spotify: Compartir → Copiar enlace", 64,
+			buttonCtl([]string{"Pegar link"}, []uint32{sColAccent}, []func(){func() { addPlaylistFromClipboard(); invalidateAll() }})}}
+		for i, p := range cfg.Playlists {
+			i := i
+			kind := "Playlist"
+			if p.Kind == "album" {
+				kind = "Álbum"
+			}
+			rows = append(rows, sRow{playlistName(p), kind, 58,
+				buttonCtl([]string{"Quitar"}, []uint32{0xFF4A2C30}, []func(){func() { removePlaylist(i); invalidateAll() }})})
+		}
+		L.card(rows)
 	}
 	if settingsTab == 5 {
 		// Actualizaciones

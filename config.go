@@ -26,6 +26,8 @@ type Config struct {
 	CheckUpdates      bool        `json:"checkUpdates"`
 	AppPages          []AppPage   `json:"appPages"`
 	SeenVersion       string      `json:"seenVersion"`
+	Playlists         []Playlist  `json:"playlists,omitempty"`
+	SpotifyClientID   string      `json:"spotifyClientId,omitempty"` // app del usuario en developer.spotify.com
 }
 
 func defaultConfig() Config {

@@ -30,8 +30,12 @@ const (
 	tMoon
 	tPower
 	tGear
+	tPlaylists // botón de playlists en la tarjeta de música (junto al engranaje)
 	tCount
 )
+
+// isCardButton: botones chicos que van encima de la tarjeta de música.
+func isCardButton(i int) bool { return i == tGear || i == tPlaylists }
 
 type tileDef struct {
 	page, col, row, cspan int
@@ -54,6 +58,7 @@ var tileDefs = [tCount]tileDef{
 	tMoon:       {0, 3, 2, 1},
 	tPower:      {0, 4, 2, 1},
 	tGear:       {0, 0, 0, 0},
+	tPlaylists:  {0, 0, 0, 0},
 }
 
 const (
@@ -151,7 +156,7 @@ func layout(w, h float32) {
 	}
 	bottom := pad*1.2 + 10 // espacio para los puntitos de página
 	for i, d := range tileDefs {
-		if i == tGear {
+		if isCardButton(i) {
 			continue
 		}
 		cols, rows := pageGrid[d.page][0], pageGrid[d.page][1]
@@ -169,6 +174,9 @@ func layout(w, h float32) {
 		g = v.H * 0.25
 		tiles[tGear] = RectF{v.X + v.W - g - v.H*0.09, v.Y + v.H*0.09, g, g}
 	}
+	// playlists: a la izquierda del engranaje, del mismo tamaño
+	gr := tiles[tGear]
+	tiles[tPlaylists] = RectF{gr.X - gr.W - v.H*0.05, gr.Y, gr.W, gr.H}
 	if !swiping && !animOn {
 		scrollX = float32(page) * w
 	}
@@ -190,9 +198,12 @@ func hitTest(x, y int32) int {
 	if page == 0 && inRect(tiles[tGear], fx, fy) {
 		return tGear
 	}
+	if page == 0 && inRect(tiles[tPlaylists], fx, fy) {
+		return tPlaylists
+	}
 	if page == 0 {
 		for i := 0; i < tCount; i++ {
-			if i != tGear && inRect(tiles[i], fx, fy) {
+			if !isCardButton(i) && inRect(tiles[i], fx, fy) {
 				return i
 			}
 		}
@@ -357,6 +368,7 @@ func paint(c *Canvas) {
 	paintDots(c)
 	paintToast(c)
 	paintHistory(c)
+	paintPlaylists(c)
 	paintIdle(c)
 	paintSettingsPanel(c)
 	paintPicker(c)
@@ -485,7 +497,7 @@ func drawVolume(c *Canvas) {
 	volCardBG(c, r)
 	m := r.H * 0.12
 	fs := r.H * 0.12
-	g0 := tiles[tGear]
+	g0 := tiles[tPlaylists] // el texto termina antes de los botones de la esquina
 	if mediaShowing() {
 		drawMediaHeader(c, r, g0.X-r.H*0.05)
 	} else if cfg.MostrarSpotify && spot.Running && spotSong != "" {
@@ -522,7 +534,23 @@ func drawVolume(c *Canvas) {
 		}
 	} else {
 		c.Text(pct, semiFont, fs*1.08, semiStyle, colWhite,
-			RectF{r.X + r.W*0.4, r.Y + m*0.55, g.X - (r.X + r.W*0.4) - m*0.15, fs * 1.7}, AlignFar, AlignCenter)
+			RectF{r.X + r.W*0.4, r.Y + m*0.55, tiles[tPlaylists].X - (r.X + r.W*0.4) - m*0.15, fs * 1.7}, AlignFar, AlignCenter)
+	}
+	// botón de playlists (nota musical), a la izquierda del engranaje
+	pl := tiles[tPlaylists]
+	if isGrafito() {
+		bg, ic := uint32(gRaised), uint32(0xFFB5BAC4)
+		if pressed == tPlaylists {
+			bg, ic = lighten(gRaised, 0.08), gText
+		}
+		c.RoundRect(pl.X, pl.Y, pl.W, pl.H, pl.W*0.18, bg)
+		c.Text(string(rune(0xEC4F)), iconFont, pl.H*0.46, FontStyleRegular, ic, pl, AlignCenter, AlignCenter)
+	} else {
+		ic := uint32(colDim)
+		if pressed == tPlaylists {
+			ic = colWhite
+		}
+		c.Text(string(rune(0xEC4F)), iconFont, pl.H*0.5, FontStyleRegular, ic, pl, AlignCenter, AlignCenter)
 	}
 	gc := uint32(colDim)
 	if pressed == tGear {
@@ -733,6 +761,9 @@ func onAnim() {
 	if animHistory() {
 		busy = true
 	}
+	if animPlaylists() {
+		busy = true
+	}
 	if animIdle() {
 		busy = true
 	}
@@ -816,6 +847,10 @@ func pointerDown(id int64, x, y int32) {
 		invalidate(hwnd)
 		return
 	}
+	if plOpen {
+		playlistsDown(x, y)
+		return
+	}
 	if historyOpen {
 		historyDown(x, y)
 		return
@@ -880,6 +915,10 @@ func pointerMove(id int64, x, y int32) {
 			notifDY /= 4 // hacia abajo casi no se mueve
 		}
 		invalidate(hwnd)
+		return
+	}
+	if plOpen {
+		playlistsMove(x, y)
 		return
 	}
 	if historyOpen {
@@ -1006,12 +1045,14 @@ func pointerUp(id int64, x, y int32, touch bool) {
 		startAnim()
 		return
 	}
-	if historyOpen || pickerOpen || settingsOpen {
+	if plOpen || historyOpen || pickerOpen || settingsOpen {
 		activePointer = math.MinInt64
 		if touch {
 			restoreFocusAndCursor()
 		}
-		if historyOpen {
+		if plOpen {
+			playlistsUp(x, y)
+		} else if historyOpen {
 			historyUp(x, y)
 		} else if pickerOpen {
 			pickerUp(x, y)
@@ -1092,7 +1133,7 @@ func pointerUp(id int64, x, y int32, touch bool) {
 		return
 	}
 	if !wasDragging && t == p && t >= 0 {
-		if t != tGear {
+		if !isCardButton(t) {
 			bounces[t] = time.Now()
 		}
 		startAnim()
@@ -1211,6 +1252,8 @@ func activate(t int) {
 		runSlot(-1, mainIndex(t))
 	case tGear:
 		showMenu()
+	case tPlaylists:
+		openPlaylists()
 	}
 	invalidate(hwnd)
 }
@@ -1290,6 +1333,8 @@ func onTimer() {
 	receiveNotifs()
 	receiveUpdates()
 	receiveWhatsNew()
+	receivePlaylists()
+	receiveSpotify()
 	if tickCount%5 == 0 {
 		checkAutoPage()
 	}
@@ -1757,6 +1802,7 @@ func main() {
 	if !demo {
 		addTrayIcon()
 		defer removeTrayIcon()
+		refreshSpotifyLists(false) // playlists de la cuenta conectada, si hay
 	}
 	resetWhatsApp()
 	go whatsappWatcher()
@@ -1777,6 +1823,7 @@ func main() {
 		openSettings()
 		if demo {
 			fmt.Sscan(os.Getenv("PANEL_DEMO_TAB"), &settingsTab) // pestaña, para capturas
+			fmt.Sscan(os.Getenv("PANEL_DEMO_SCROLL"), &setScroll)
 		}
 	}
 	if demo {
@@ -1785,6 +1832,8 @@ func main() {
 			openHistory()
 		case "picker":
 			openPicker(0, 1)
+		case "playlists":
+			openPlaylists()
 		case "menu":
 			pPostMessageW.Call(hwnd, WM_APP_DEMOMENU, 0, 0)
 		case "hotkey":

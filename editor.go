@@ -747,6 +747,24 @@ func edMedia(L *edLayout) {
 		sel := edDraft.Tipo == "media" && edDraft.Accion == m.key
 		return icons[m.icon], m.label, m.col, sel, func() { setDraft(BotonP2{Tipo: "media", Accion: m.key}) }
 	})
+	// playlists de la cuenta conectada y las agregadas con link
+	L.label("Tus playlists")
+	lists := allPlaylists()
+	if len(lists) == 0 {
+		L.label("Conecta tu Spotify o pega links en Configuración → Música.")
+		return
+	}
+	L.grid(len(lists), func(i int, vis bool) (*Image, string, uint32, bool, func()) {
+		p := lists[i]
+		sel := edDraft.Tipo == "playlist" && edDraft.Ruta == p.webURL()
+		img := playlistCover(p)
+		if img == nil {
+			img = icons["musical_note"]
+		}
+		return img, playlistName(p), playlistCol, sel, func() {
+			setDraft(BotonP2{Tipo: "playlist", Ruta: p.webURL(), Nombre: playlistName(p)})
+		}
+	})
 }
 
 var hotkeyPresets = []struct{ label, keys, icon string }{
